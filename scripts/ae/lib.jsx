@@ -36,10 +36,10 @@ function cCaption(c, s, t0, t1, name) {
 }
 function cName(c, nm, role, x, y, t0, t1, name) {
   var sq = cRect(c, name + '_四角', 12, 12, ST.accent, [x, y - 13], [0, 0]);
-  var rl = cText(c, role, ST.font_role, 20, ST.accent, [x + 26, y], 300, ParagraphJustification.LEFT_JUSTIFY, name + '_肩書');
   var nl = cText(c, nm, ST.font_name, 58, '#ffffff', [x, y + 74], 80, ParagraphJustification.LEFT_JUSTIFY, name + '_名前'); cShadow(nl, 150, 2, 24);
   var ln = cRect(c, name + '_線', 340, 2, '#ffffff', [x, y + 100], [0, 1]);
-  var all = [sq, rl, nl, ln];
+  var all = [sq, nl, ln];
+  if (role) all.splice(1, 0, cText(c, role, ST.font_role, 20, ST.accent, [x + 26, y], 300, ParagraphJustification.LEFT_JUSTIFY, name + '_肩書'));   // 肩書が空なら出さない
   for (var i = 0; i < all.length; i++) cRise(all[i], t0 + i * .08, t1, 14);
   keys(tr(ln, 'ADBE Scale'), [[t0 + .24, [0, 100]], [t0 + .85, [100, 100]]], 5, 92);
   return all;

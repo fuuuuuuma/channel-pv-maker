@@ -124,6 +124,14 @@ def run(P):
         if r > 0: g[i0:i0 + r] = np.linspace(0, 1, r); g[i1 - r:i1] = np.linspace(1, 0, r)
         mu *= (1 + (db(float(b.get('db', 4))) - 1) * g)[:, None]
 
+    m_ = np.abs(mu).max(1); n_ = len(m_) // SR; sec = m_[:n_ * SR].reshape(n_, SR).max(1)
+    quiet, st = [], None                                       # 音楽が鳴っていない 2 秒以上の区間（意図した無音でなければ曲を足す）
+    for i, v in enumerate(list(sec) + [1]):
+        if v < 1e-4 and st is None: st = i
+        if v >= 1e-4 and st is not None:
+            if i - st >= 2: quiet.append((st, i))
+            st = None
+    if quiet: print('音楽が鳴っていない区間（秒）', quiet)
     env_ = np.convolve(np.abs(vo).max(axis=1), np.ones(int(.03 * SR)) / int(.03 * SR), mode='same')   # 声の下で音楽を下げる
     g = np.clip(env_ / .02, 0, 1); out = np.empty_like(g); au, ad = np.exp(-1 / (.06 * SR)), np.exp(-1 / (.45 * SR)); s = 0.
     for i in range(0, len(g), 48):

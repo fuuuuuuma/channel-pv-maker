@@ -26,6 +26,7 @@ def cmd_init(a):
     json.dump(dict(name=name, lang=a.lang, channel=a.channel or ''), open(root / 'pv.project.json', 'w'), ensure_ascii=False, indent=1)
     for f in ('edl.py', 'style.json', 'scenes.json', 'audio.json', 'framing.json', 'montage_pick.json'):
         if not (root / 'build' / f).exists(): shutil.copy(TPL / f, root / 'build' / f)
+    if not (root / 'planning' / 'plan.md').exists(): shutil.copy(TPL / 'plan.md', root / 'planning' / 'plan.md')
     print('案件フォルダを作りました →', root)
 
 
