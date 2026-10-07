@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.DS_Store
+scripts/render/node_modules/
+scripts/render/package-lock.json
+scripts/render/tex/

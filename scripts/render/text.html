@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<!-- AE 無しで書き出すときの字幕と名前の札（1 枚ずつ透明な PNG に描いて、ffmpeg で溶かしながら重ねる）。
+     中身は案件の build/_ff/texts.json（pv.py compose が作る）。 -->
+<link rel="preconnect" href="https://fonts.gstatic.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@600;800&display=block" rel="stylesheet">
+<style>
+@font-face{font-family:IN;src:url(fonts/Inter-800.ttf);font-weight:800}
+@font-face{font-family:JPL;src:local('HiraginoSans-W6');font-weight:600}
+@font-face{font-family:JPL;src:local('HiraginoSans-W8');font-weight:800}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:transparent}
+#cam{position:absolute;inset:0}
+.cap{position:absolute;left:0;right:0;text-align:center;font-family:JPL,'Noto Sans JP',sans-serif;font-weight:600;color:#fff;letter-spacing:.07em;white-space:nowrap}
+.cap.shadow{text-shadow:0 2px 14px rgba(0,0,0,.75),0 0 2px rgba(0,0,0,.6)}
+.name{position:absolute}
+.name .r{display:flex;align-items:center;gap:14px;font:800 20px IN;letter-spacing:.3em;white-space:nowrap}
+.name .r i{display:inline-block;width:12px;height:12px}
+.name .n{margin-top:14px;font-family:JPL,'Noto Sans JP',sans-serif;font-weight:800;font-size:58px;color:#fff;letter-spacing:.08em;white-space:nowrap;text-shadow:0 2px 20px rgba(0,0,0,.6)}
+.name .l{width:340px;height:2px;background:linear-gradient(90deg,#fff,rgba(255,255,255,0));margin-top:16px}
+</style></head>
+<body><div id="cam"></div>
+<script>
+let T = [], ST = {};
+window.renderText = function (i) {
+  const c = T[i], cam = document.getElementById('cam'); cam.innerHTML = '';
+  if (c.kind === 'cap') {
+    const d = document.createElement('div'); d.className = 'cap' + (ST.letterbox === false ? ' shadow' : '');
+    d.style.fontSize = (ST.caption_size || 40) * 1.12 + 'px'; d.style.top = (ST.letterbox === false ? 950 : 982) + 'px'; d.textContent = c.text;
+    cam.appendChild(d);
+    if (d.scrollWidth > 1700) d.style.transform = `scale(${1700 / d.scrollWidth})`;
+  } else {
+    const [x, y] = ST.name_pos || [120, 790];
+    const d = document.createElement('div'); d.className = 'name'; d.style.left = x + 'px'; d.style.top = (y - 20) + 'px';
+    d.innerHTML = `<div class="r" style="color:${ST.accent || '#ffd400'}"><i style="background:${ST.accent || '#ffd400'}"></i>${c.role || ''}</div><div class="n">${c.name}</div><div class="l"></div>`;
+    cam.appendChild(d);
+  }
+};
+(async () => {
+  T = await (await fetch('/proj/build/_ff/texts.json')).json();
+  try { ST = await (await fetch('/proj/build/_comp.json')).json(); ST = ST.style || {}; } catch (e) {}
+  const all = T.map(c => (c.text || '') + (c.name || '') + (c.role || '')).join('');
+  await Promise.all(['600 40px JPL', '800 40px JPL', '600 40px "Noto Sans JP"', '800 40px "Noto Sans JP"', '800 20px IN'].map(f => document.fonts.load(f, all).catch(() => {})));
+  window.READY = true;
+})();
+</script></body></html>

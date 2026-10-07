@@ -1,0 +1,9 @@
+{
+  "name": "channel-pv-render",
+  "private": true,
+  "type": "module",
+  "description": "ブラウザで場面と強調テロップを描いて書き出す（channel-pv-maker の一部）",
+  "dependencies": {
+    "playwright-core": "^1.55.0"
+  }
+}

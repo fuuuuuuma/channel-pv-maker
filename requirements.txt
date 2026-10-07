@@ -1,0 +1,11 @@
+# 必須
+numpy
+pillow
+scipy
+# 文字起こし（どれか 1 つ）: Apple Silicon は mlx-whisper、それ以外は faster-whisper
+mlx-whisper; sys_platform == "darwin" and platform_machine == "arm64"
+faster-whisper; sys_platform != "darwin" or platform_machine != "arm64"
+# 任意（おすすめ）: 元動画の BGM を声から外す
+# demucs
+# 任意: Mac 以外で顔の位置を調べる
+# opencv-python

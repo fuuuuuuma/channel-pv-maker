@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<!-- PV の場面（ブラウザで 1 コマずつ描いて書き出す）。中身は案件の build/scenes.json、長さは build/timeline.json の fx ブロック。
+     場面の種類（type）: title / brand / stat / map / list / wall / quotes / xwall / chapter / brand_end
+     画像の道は案件フォルダからの相対（例 assets/brand/logo.png）。 -->
+<link rel="preconnect" href="https://fonts.gstatic.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;800;900&display=block" rel="stylesheet">
+<style>
+@font-face{font-family:IN;src:url(fonts/Inter-500.ttf);font-weight:500}
+@font-face{font-family:IN;src:url(fonts/Inter-800.ttf);font-weight:800}
+@font-face{font-family:IN;src:url(fonts/Inter-900.ttf);font-weight:900}
+@font-face{font-family:DG;src:url(fonts/DelaGothicOne-Regular.ttf)}
+@font-face{font-family:JPL;src:local('HiraginoSans-W3');font-weight:300}
+@font-face{font-family:JPL;src:local('HiraginoSans-W6');font-weight:600}
+@font-face{font-family:JPL;src:local('HiraginoSans-W8');font-weight:800}
+@font-face{font-family:JPL;src:local('HiraginoSans-W9');font-weight:900}
+:root{--y:#ffd400;--o:#f07a12;--bg:#0b0b0c;--brand:#FFE73C;--dot:#f08a00;--JP:JPL,'Noto Sans JP',sans-serif}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:var(--bg)}
+#cam{position:absolute;inset:0;transform-origin:50% 50%}
+.s{position:absolute;will-change:transform,opacity,filter}
+.jp{font-family:var(--JP)}
+.grain{position:absolute;inset:0;opacity:.07;pointer-events:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence baseFrequency='.85' numOctaves='2'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>")}
+.vig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 72% 70% at 50% 48%,transparent 50%,rgba(0,0,0,.6))}
+.k{font:800 22px IN;letter-spacing:.5em;color:var(--y);white-space:nowrap}
+.card{border-radius:14px;overflow:hidden;box-shadow:0 30px 70px rgba(0,0,0,.55);background:#fff}
+.card img{display:block;width:100%}
+.photo{border-radius:10px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.6)}
+.photo img{display:block;width:100%;height:100%;object-fit:cover}
+</style></head>
+<body><div id="cam"></div><div class="vig"></div><div class="grain" id="grain"></div>
+<script>
+const cam = document.getElementById('cam');
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const P = (t, a, b) => clamp((t - a) / (b - a), 0, 1);
+const oc = x => 1 - Math.pow(1 - x, 3), o5 = x => 1 - Math.pow(1 - x, 5), ioc = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const U = p => !p ? '' : (/^(https?:|data:|\/)/.test(p) ? p : '/proj/' + p.split('/').map(encodeURIComponent).join('/'));
+function el(html, x, y, extra) { const d = document.createElement('div'); d.className = 's'; d.innerHTML = html; d.style.left = x + 'px'; d.style.top = y + 'px'; if (extra) d.style.cssText += extra; cam.appendChild(d); return d; }
+// 立ち上がり：ぼけから定まり、少し下から上がる。t1 から短く消える
+function rise(d, t, t0, dur, dy, t1, center) {
+  dur = dur || .6; dy = dy == null ? 26 : dy;
+  const p = o5(P(t, t0, t0 + dur)); let op = t < t0 ? 0 : p;
+  if (t1 != null && t > t1) op *= 1 - oc(P(t, t1, t1 + .35));
+  d.style.opacity = op; d.style.filter = `blur(${(1 - p) * 10}px)`;
+  d.style.transform = `${center ? 'translate(-50%,-50%) ' : ''}translateY(${(1 - p) * dy}px)`;
+}
+function bg(src, t, dur, op, blur) {   // ゆっくり寄る背景写真
+  if (!src) return;
+  const d = el(`<div style="width:1920px;height:1080px;background:url('${U(src)}') center/cover"></div>`, 0, 0);
+  d.style.opacity = op; d.style.filter = `blur(${blur}px) saturate(.85)`; d.style.transform = `scale(${1.08 + .06 * P(t, 0, dur)})`;
+}
+function bounce(p) { return p >= 1 ? 1 : 1 - Math.cos(p * Math.PI * 2.4) * Math.pow(1 - p, 2.2); }
+function brandBg(t) {   // ブランド色の地＋網点（ゆっくり流れる）
+  el(`<div style="width:1920px;height:1080px;background:var(--brand)"></div>`, 0, 0);
+  const d = el(`<div style="width:2200px;height:1300px;opacity:.16;background-image:radial-gradient(circle,var(--dot) 22%,transparent 24%);background-size:26px 26px"></div>`, -140, -110);
+  d.style.transform = `translate(${-t * 14}px,${-t * 8}px)`;
+}
+function logoImg(src, t, t0, cx, cy, w) {   // ロゴの画像。跳ねて定まる
+  const p = P(t, t0, t0 + .7), s = .55 + .45 * bounce(p);
+  const d = el(`<img src="${U(src)}" style="width:${w}px;filter:drop-shadow(10px 12px 0 rgba(0,0,0,.18))">`, cx, cy);
+  d.style.opacity = t < t0 ? 0 : Math.min(1, p * 4); d.style.transform = `translate(-50%,-50%) scale(${s}) rotate(${(1 - o5(p)) * -6}deg)`;
+}
+function catchLine(parts, t, t0, cx, cy, size) {   // キャッチ：語ごとのグラデーション＋白の縁＋黒の外縁（Dela Gothic One）
+  if (!parts || !parts.length) return;
+  const layer = st => parts.map(([w, a, b]) => `<span style="${st(a, b)}">${w}</span>`).join('');
+  const base = `font:400 ${size}px DG,var(--JP);letter-spacing:.07em;white-space:nowrap;position:absolute;left:0;top:0`;
+  const chars = parts.reduce((n, p) => n + [...p[0]].length, 0), w = size * chars * 1.08;
+  const html = `<div style="position:relative;height:${size * 1.25}px;width:${w}px">
+    <div style="${base};color:#111;-webkit-text-stroke:${size * .17}px #111">${layer(() => '')}</div>
+    <div style="${base};color:#fff;-webkit-text-stroke:${size * .09}px #fff">${layer(() => '')}</div>
+    <div style="${base}">${layer((a, b) => `background:linear-gradient(180deg,${a},${b || a});-webkit-background-clip:text;background-clip:text;color:transparent`)}</div></div>`;
+  const d = el(html, cx - w / 2, cy); const p = P(t, t0, t0 + .55);
+  d.style.opacity = t < t0 ? 0 : Math.min(1, p * 3); d.style.transform = `scale(${.8 + .2 * bounce(p)}) rotate(${-2 + 2 * o5(p)}deg)`; d.style.transformOrigin = '50% 50%';
+}
+const clear = () => { cam.innerHTML = ''; cam.style.transform = ''; cam.style.opacity = 1; cam.style.transformOrigin = '50% 50%'; };
+const fadeOut = (t, dur, len) => { cam.style.opacity = 1 - P(t, dur - (len || .35), dur); };
+const S = {};
+
+// ===== title：暗い地に見出し（ロゴの画像か文字） =====
+S.title = function (t, dur, c) {
+  clear(); bg(c.bg, t, dur, .16 * P(t, 0, 1), 18);
+  cam.style.transform = `scale(${1.02 - .02 * P(t, 0, dur)})`;
+  const ln = el(`<div style="width:${300 * o5(P(t, .1, .8))}px;height:2px;background:var(--y)"></div>`, 960 - 150 * o5(P(t, .1, .8)), 330);
+  if (c.kicker) { const k = el(`<div class="k" style="font-size:24px">${c.kicker}</div>`, 960, 380); rise(k, t, .3, .6, 12, null, true); }
+  if (c.logo) logoImg(c.logo, t, .4, 960, 540, c.logo_w || 1000);
+  else { const h = el(`<div style="font:900 ${c.size || 150}px IN,var(--JP);color:#fff;letter-spacing:.04em;white-space:nowrap">${c.text || ''}</div>`, 960, 540); rise(h, t, .45, .7, 30, null, true); }
+  if (c.sub) { const s = el(`<div class="jp" style="font-weight:600;font-size:44px;color:#fff;letter-spacing:.18em;white-space:nowrap">${c.sub}</div>`, 960, 720); rise(s, t, 1.1, .7, 16, null, true); }
+  fadeOut(t, dur, .3);
+};
+// ===== brand：ブランド色の地にロゴの画像とキャッチ（題字） =====
+S.brand = function (t, dur, c) {
+  clear(); brandBg(t);
+  if (c.kicker) { const k = el(`<div style="font:800 26px IN;letter-spacing:.5em;color:#111;white-space:nowrap">${c.kicker}</div>`, 960, 300); rise(k, t, .35, .5, 12, null, true); }
+  if (c.logo) logoImg(c.logo, t, .05, 960, 500, c.logo_w || 1180);
+  catchLine(c.catch, t, .8, 960, 690, c.catch_size || 74);
+  cam.style.transform = `scale(${1 + .03 * P(t, 0, dur)})`;
+  fadeOut(t, dur, .3);
+};
+// ===== brand_end：終わりの画面（アイコン・ロゴ・キャッチ・リンク） =====
+S.brand_end = function (t, dur, c) {
+  clear(); brandBg(t);
+  const cx = c.icon ? 1130 : 960;
+  if (c.icon) {
+    const ic = el(`<img src="${U(c.icon)}" style="width:300px;border-radius:26px;border:6px solid #111;box-shadow:12px 14px 0 rgba(0,0,0,.2)">`, 330, 470);
+    const pi = P(t, .1, .8); ic.style.opacity = Math.min(1, pi * 4); ic.style.transform = `translate(-50%,-50%) scale(${.5 + .5 * bounce(pi)}) rotate(${-6 + 2 * o5(pi)}deg)`;
+  }
+  if (c.logo) logoImg(c.logo, t, .3, cx, 400, c.logo_w || 1150);
+  catchLine(c.catch, t, 1.0, cx, 560, c.catch_size || 70);
+  const pill = (a, b) => `<span style="display:inline-flex;align-items:center;gap:14px;background:#111;color:#fff;border-radius:999px;padding:14px 30px"><span style="font:800 24px IN;color:var(--brand);letter-spacing:.06em">${a}</span><span class="jp" style="font-weight:800;font-size:28px;letter-spacing:.06em">${b}</span></span>`;
+  if (c.links) { const h = el(`<div style="display:flex;gap:26px;white-space:nowrap">${c.links.map(l => pill(l[0], l[1])).join('')}</div>`, cx, 800); rise(h, t, 1.6, .5, 14, null, true); }
+  cam.style.opacity = 1 - P(t, dur - 1.0, dur);
+};
+// ===== stat：大きな数字（数え上がる）＋一言＋添える画像 =====
+S.stat = function (t, dur, c) {
+  clear(); bg(c.bg, t, dur, .28, 14);
+  const k = el(`<div class="k">${c.kicker || ''}</div>`, 140, 300); rise(k, t, .1, .6, 16);
+  const n = Math.round((c.value || 0) * o5(P(t, .3, 1.7)));
+  const b = el(`<div style="white-space:nowrap"><span style="font:900 300px/1 IN;color:#fff;letter-spacing:-.02em">${n.toLocaleString()}</span><span class="jp" style="font-weight:800;font-size:110px;color:#fff;margin-left:22px">${c.unit || ''}</span></div>`, 130, 350);
+  rise(b, t, .25, .6, 30);
+  el(`<div style="width:${520 * o5(P(t, 1.5, 2.1))}px;height:6px;background:var(--y)"></div>`, 140, 700);
+  if (c.sub) { const s = el(`<div class="jp" style="font-weight:600;font-size:40px;color:#fff;letter-spacing:.08em;white-space:nowrap">${c.sub.replace(/<b>/g, '<span style="color:var(--y)">').replace(/<\/b>/g, '</span>')}</div>`, 140, 740); rise(s, t, 1.55, .6, 16); }
+  if (c.card) { const x = el(`<div class="card" style="width:520px"><img src="${U(c.card)}"></div>`, 1240, 170);
+    const q = o5(P(t, 1.0, 1.7)); x.style.opacity = q; x.style.transform = `translate(${(1 - q) * 160}px,0) rotate(2.5deg)`; x.style.filter = `blur(${(1 - q) * 8}px)`; }
+  fadeOut(t, dur);
+};
+// ===== map：地図に点と写真のカード（build/map.json は pv.py map で作る） =====
+S.map = function (t, dur, c) {
+  clear(); const J = MAP; if (!J) return;
+  const sc = c.scale || .92, ox = (c.cx || 760) - J.w * sc / 2, oy = 540 - J.h * sc / 2;
+  cam.style.transformOrigin = '880px 520px'; cam.style.transform = `scale(${1.04 + .05 * ioc(P(t, 0, dur))})`;
+  const m = el(`<svg width="${J.w * sc}" height="${J.h * sc}" viewBox="0 0 ${J.w} ${J.h}" style="overflow:visible"><path d="${J.paths.join(' ')}" fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.42)" stroke-width="1.2" stroke-linejoin="round"/></svg>`, ox, oy);
+  m.style.opacity = oc(P(t, 0, .6));
+  if (c.kicker) { const k = el(`<div class="k">${c.kicker}</div>`, 120, 96); rise(k, t, .2, .6, 14); }
+  if (c.title) { const h = el(`<div class="jp" style="font-weight:800;font-size:64px;color:#fff;letter-spacing:.06em;white-space:nowrap">${c.title}</div>`, 120, 132); rise(h, t, .3, .6, 18); }
+  const items = (c.places || []).map(pl => { const q = J.places[pl.name] || [0, 0]; return [pl, ox + q[0] * sc + (pl.dx || 0), oy + q[1] * sc + (pl.dy || 0)]; });
+  const lines = [];
+  items.forEach(([pl, x, y]) => { if (t > pl.at + .1) { const q = o5(P(t, pl.at + .1, pl.at + .45)); const [cx, cy] = pl.card;
+    lines.push(`<line x1="${x}" y1="${y}" x2="${x + (cx - x) * q}" y2="${y + (cy - y) * q}" stroke="var(--y)" stroke-opacity=".75" stroke-width="2"/>`); } });
+  el(`<svg width="1920" height="1080" style="overflow:visible">${lines.join('')}</svg>`, 0, 0);
+  items.forEach(([pl, x, y]) => {
+    const p = P(t, pl.at, pl.at + .5), pulse = ((t - pl.at) % 1.4 + 1.4) % 1.4 / 1.4;
+    const dot = el(`<div style="position:relative;width:0;height:0"><div style="position:absolute;left:-9px;top:-9px;width:18px;height:18px;border-radius:50%;background:var(--y);box-shadow:0 0 22px var(--y)"></div>
+      <div style="position:absolute;left:${-9 - 26 * pulse}px;top:${-9 - 26 * pulse}px;width:${18 + 52 * pulse}px;height:${18 + 52 * pulse}px;border-radius:50%;border:2px solid var(--y);opacity:${.7 * (1 - pulse)}"></div></div>`, x, y);
+    dot.style.opacity = t < pl.at ? 0 : 1; dot.style.transform = `scale(${o5(p)})`;
+    const [cx, cy] = pl.card;
+    const card = el(`${pl.img ? `<div class="photo" style="width:300px;height:190px"><img src="${U(pl.img)}"></div>` : ''}
+      <div style="margin-top:14px;font:800 15px IN;letter-spacing:.32em;color:var(--y)">${pl.en || ''}</div>
+      <div style="margin-top:6px;display:flex;align-items:baseline;gap:16px"><span class="jp" style="font-weight:800;font-size:34px;color:#fff;letter-spacing:.06em">${pl.label || pl.name}</span><span style="font:800 18px IN;color:rgba(255,255,255,.6);letter-spacing:.2em">${pl.sub || ''}</span></div>`, cx - 150, cy - 95);
+    rise(card, t, pl.at + .25, .6, 22);
+  });
+  fadeOut(t, dur);
+};
+// ===== list：項目の名前が下から積み上がる＋右にサムネが重なる =====
+S.list = function (t, dur, c) {
+  clear();
+  if (c.kicker) { const k = el(`<div class="k">${c.kicker}</div>`, 140, 150); rise(k, t, .05, .6, 14); }
+  let tt = .25, gap = .55; const shown = [];
+  (c.items || []).forEach((s, i) => { shown.push([s, i, tt]); tt += gap; gap = Math.max(.32, gap * .9); });
+  const vis = shown.filter(s => s[2] <= t);
+  vis.forEach(([s, i, t0], j) => {
+    const fromEnd = vis.slice(j + 1).reduce((a, q) => a + o5(P(t, q[2], q[2] + .4)), 0);   // 後から来た数をなめらかに数える（行が飛ばない）
+    const y = 820 - fromEnd * 92 + (1 - o5(P(t, t0, t0 + .45))) * 60;
+    if (y < 190) return;
+    const fs = 58 + 18 * Math.max(0, 1 - fromEnd);
+    const d = el(`<div style="display:flex;align-items:baseline;gap:26px;white-space:nowrap"><span style="font:800 22px IN;color:var(--y);letter-spacing:.1em">${String(i + 1).padStart(2, '0')}</span><span class="jp" style="font-weight:800;font-size:${fs.toFixed(1)}px;color:#fff;letter-spacing:.05em">${s}</span></div>`, 140, y);
+    d.style.opacity = (t < t0 ? 0 : o5(P(t, t0, t0 + .35))) * Math.max(.18, 1 - fromEnd * .17) * (y < 260 ? (y - 190) / 70 : 1); d.style.filter = `blur(${(1 - o5(P(t, t0, t0 + .35))) * 8}px)`;
+  });
+  const TH = c.thumbs || [];
+  TH.forEach((src, i) => { const t0 = .2 + i * 1.15; if (t < t0) return;
+    const d = el(`<div class="card" style="width:620px"><img src="${U(src)}"></div>`, 1170 + (i % 2) * 36, 230 + i * 40);
+    const q = o5(P(t, t0, t0 + .6)); d.style.opacity = q; d.style.transform = `translateX(${(1 - q) * 120}px) rotate(${(i % 2 ? 1.5 : -1.5)}deg)`; d.style.filter = `blur(${(1 - q) * 6}px) brightness(${1 - .1 * (TH.length - 1 - i)})`; });
+  if (c.more) { const e = el(`<div class="jp" style="font-weight:600;font-size:34px;color:rgba(255,255,255,.75);letter-spacing:.2em;white-space:nowrap">${c.more}</div>`, 140, 930); rise(e, t, tt + .1, .5, 12); }
+  fadeOut(t, dur);
+};
+// ===== wall：画像（バナー・サムネ）が 3 段で横に流れる =====
+S.wall = function (t, dur, c) {
+  clear(); bg(c.bg, t, dur, .10, 26);
+  if (c.kicker) { const k = el(`<div class="k">${c.kicker}</div>`, 120, 168); rise(k, t, .1, .6, 14); }
+  if (c.title) { const h = el(`<div class="jp" style="font-weight:800;font-size:56px;color:#fff;letter-spacing:.06em;white-space:nowrap">${c.title}</div>`, 120, 198); rise(h, t, .2, .6, 18); }
+  const rows = [385, 600, 815], W = 320, H = W * 9 / 16, G = 26;
+  (c.images || []).forEach((e, i) => {
+    const r = i % 3, j = Math.floor(i / 3), sp = [62, 88, 54][r];
+    const x = 760 + j * (W + G) - sp * t + (r === 1 ? 170 : 0) + (r === 2 ? 80 : 0);
+    if (x > 1960 || x < -W - 40) return;
+    const src = typeof e === 'string' ? e : e.src, en = typeof e === 'string' ? '' : (e.en || '');
+    const d = el(`<div class="card" style="width:${W}px;height:${H}px;background:#111"><img src="${U(src)}" style="width:100%;height:100%;object-fit:cover"></div>
+      <div style="margin-top:8px;font:800 13px IN;letter-spacing:.28em;color:var(--y);white-space:nowrap">${en}</div>`, x, rows[r] - H / 2);
+    rise(d, t, .3 + j * .45 + r * .15, .5, 26);
+  });
+  if (LETTERBOX) { el(`<div style="width:1920px;height:138px;background:#000"></div>`, 0, 0); el(`<div style="width:1920px;height:139px;background:#000"></div>`, 0, 941); }
+  fadeOut(t, dur);
+};
+// ===== quotes：「こんな声が届いています」→ 声を 1 つずつ文字で =====
+S.quotes = function (t, dur, c) {
+  clear();
+  const Q = c.items || [], intro = c.intro ? 1.6 : 0, each = (dur - intro) / Math.max(1, Q.length);
+  const i = Math.floor((t - intro) / each), lt = t - intro - i * each, bgs = c.bgs || [];
+  if (bgs.length) bg(bgs[Math.max(0, i) % bgs.length], t, dur, .12, 22);
+  if (t < intro + .2) {
+    const k = el(`<div class="k" style="font-size:26px">${c.kicker || ''}</div>`, 960, 470); rise(k, t, .1, .6, 14, intro - .3, true);
+    const h = el(`<div class="jp" style="font-weight:800;font-size:64px;color:#fff;letter-spacing:.1em;white-space:nowrap">${c.intro}</div>`, 960, 560); rise(h, t, .25, .6, 18, intro - .3, true);
+    return;
+  }
+  const [q, who, id] = Q[Math.min(i, Q.length - 1)] || ['', '', ''];
+  const qm = el(`<div style="font:900 120px/1 IN;color:var(--y)">“</div>`, 200, 300); rise(qm, lt, 0, .45, 12, each - .3);
+  const body = el(`<div class="jp" style="font-weight:800;font-size:76px;line-height:1.42;color:#fff;letter-spacing:.04em;white-space:pre">${q}</div>`, 200, 400); rise(body, lt, .06, .55, 22, each - .3);
+  const w = el(`<div style="display:flex;align-items:center;gap:18px;white-space:nowrap"><span style="width:40px;height:2px;background:var(--y)"></span><span class="jp" style="font-weight:600;font-size:30px;color:rgba(255,255,255,.85)">${who || ''}</span><span style="font:500 24px IN;color:rgba(255,255,255,.45)">${id || ''}</span></div>`, 204, 400 + 76 * 1.42 * (q.split('\n').length) + 40);
+  rise(w, lt, .25, .5, 10, each - .3);
+  el(`<div style="font:800 20px IN;color:rgba(255,255,255,.4);letter-spacing:.3em">${String(Math.min(i, Q.length - 1) + 1).padStart(2, '0')} / ${String(Q.length).padStart(2, '0')}</div>`, 1640, 960);
+  fadeOut(t, dur, .3);
+};
+// ===== xwall：X の投稿の画像を斜めの壁にだんだん速く貼る → 中央に見出し =====
+S.xwall = function (t, dur, c) {
+  clear();
+  const XS = c.images || [], cols = 8, cw = 300, gap = 26, N = Math.max(1, XS.length);
+  const wall = document.createElement('div'); wall.className = 's';
+  wall.style.cssText = `left:960px;top:540px;width:${cols * (cw + gap)}px;transform:translate(-50%,-50%) rotate(-9deg) translateY(${140 - 260 * P(t, 0, dur)}px) scale(${1.02 + .1 * P(t, 0, dur)});display:flex;gap:${gap}px;align-items:flex-start`;
+  cam.appendChild(wall);
+  const colsEl = []; for (let k = 0; k < cols; k++) { const ce = document.createElement('div'); ce.style.cssText = `display:flex;flex-direction:column;gap:${gap}px;margin-top:${(k % 2) * -160}px`; wall.appendChild(ce); colsEl.push(ce); }
+  const total = Math.max(XS.length, 64);
+  for (let i = 0; i < total && XS.length; i++) {
+    const t0 = .05 + i * .07 * (1 - .4 * i / total);
+    const im = document.createElement('div'); im.className = 'card'; im.style.width = cw + 'px';
+    im.innerHTML = `<img src="${U(XS[i % N])}">`;
+    const q = o5(P(t, t0, t0 + .3)); im.style.opacity = t < t0 ? 0 : q; im.style.transform = `scale(${1.25 - .25 * q})`; im.style.filter = `blur(${(1 - q) * 6}px)`;
+    colsEl[i % cols].appendChild(im);
+  }
+  const at = c.title_at == null ? 3.0 : c.title_at;
+  el(`<div style="width:1920px;height:1080px;background:radial-gradient(ellipse 46% 42% at 50% 50%,rgba(11,11,12,${.88 * P(t, at - .2, at + .6)}),rgba(11,11,12,${.2 * P(t, at - .2, at + .6)}))"></div>`, 0, 0);
+  if (c.kicker) { const k = el(`<div class="k" style="font-size:24px">${c.kicker}</div>`, 960, 455); rise(k, t, at, .6, 14, dur - .6, true); }
+  if (c.title) { const h = el(`<div class="jp" style="font-weight:900;font-size:120px;color:#fff;letter-spacing:.06em;white-space:nowrap">${c.title}</div>`, 960, 560); rise(h, t, at + .15, .7, 20, dur - .6, true); }
+  fadeOut(t, dur);
+};
+// ===== chapter：章の区切り（小見出し＋見出し） =====
+S.chapter = function (t, dur, c) {
+  clear(); bg(c.bg, t, dur, .18, 16);
+  const k = el(`<div class="k" style="font-size:24px">${c.kicker || ''}</div>`, 960, 470); rise(k, t, .1, .6, 14, dur - .5, true);
+  const h = el(`<div class="jp" style="font-weight:900;font-size:${c.size || 96}px;color:#fff;letter-spacing:.08em;white-space:nowrap">${c.title || ''}</div>`, 960, 570); rise(h, t, .25, .7, 20, dur - .5, true);
+  el(`<div style="width:${260 * o5(P(t, .5, 1.1))}px;height:3px;background:var(--y)"></div>`, 960 - 130 * o5(P(t, .5, 1.1)), 660);
+  fadeOut(t, dur);
+};
+
+let CFG = {}, MAP = null, LETTERBOX = true; window.DUR = {};
+window.renderFx = function (k, t) {
+  const c = (CFG.scenes || {})[k] || {}, type = c.type || k;
+  if (!S[type]) throw new Error('場面の種類が無い: ' + type);
+  S[type](t, window.DUR[k], c);
+  const light = type === 'brand' || type === 'brand_end';   // 明るい地では周辺の暗さと粒を消す
+  document.querySelector('.vig').style.opacity = light ? 0 : 1;
+  const g = document.getElementById('grain'); g.style.opacity = light ? .03 : '';
+  g.style.backgroundPosition = `${(Math.floor(t * 24) * 37) % 200}px ${(Math.floor(t * 24) * 53) % 200}px`;
+};
+(async () => {
+  CFG = await (await fetch('/proj/build/scenes.json')).json();
+  const th = CFG.theme || {}, r = document.documentElement.style;
+  for (const [a, b] of [['bg', '--bg'], ['accent', '--y'], ['accent2', '--o'], ['brand', '--brand'], ['dot', '--dot']]) if (th[a]) r.setProperty(b, th[a]);
+  try { MAP = await (await fetch('/proj/build/map.json')).json(); } catch (e) { MAP = null; }
+  try { const st = await (await fetch('/proj/build/style.json')).json(); LETTERBOX = st.letterbox !== false; } catch (e) {}
+  const tl = await (await fetch('/proj/build/timeline.json')).json();
+  tl.blocks.filter(b => b.t === 'fx').forEach(b => window.DUR[b.k] = b.dur);
+  const imgs = new Set();
+  JSON.stringify(CFG).replace(/"((?:assets|build|research)\/[^"]+\.(?:png|jpe?g|webp))"/g, (m, p) => imgs.add(p));
+  await Promise.all([...imgs].map(p => new Promise(res => { const i = new Image(); i.onload = res; i.onerror = res; i.src = U(p); })));
+  await Promise.all(['900 100px IN', '800 40px IN', '400 100px DG', '800 40px JPL', '600 40px JPL', '900 40px JPL', '800 40px "Noto Sans JP"'].map(f => document.fonts.load(f, 'あア亜A1').catch(() => {})));
+  window.READY = true;
+})();
+</script></body></html>

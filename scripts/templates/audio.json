@@ -1,0 +1,15 @@
+{
+ "_説明": "時刻は「ブロック名.T（始まり）/.end（終わり）/.voice（声の始まり）」か秒、後ろに +秒 -秒。file は案件フォルダからの道。音楽は場面の切れ目で入れ替え、声の無い場面（声の文字・X の壁）は boost で少し上げる",
+ "music": [
+  {"file": "assets/music/intro.mp3", "from": 0, "at": 0, "until": "title.T", "gain": -4, "fade_in": 2.0, "fade_out": 0.3},
+  {"file": "assets/music/main.mp3", "from": 0, "at": "title.T", "until": "end.end", "gain": 0, "fade_out": 2.0}
+ ],
+ "sfx": [],
+ "ambience": [],
+ "boost": [],
+ "auto": {"punch": "", "punch_gain": -17, "big": "", "big_gain": -12},
+ "force_end": {},
+ "duck_db": -10,
+ "music_db": -6,
+ "sfx_db": -6
+}

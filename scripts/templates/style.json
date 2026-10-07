@@ -1,0 +1,14 @@
+{
+ "_説明": "見た目の設定。letterbox: 上下の黒帯（2.39:1）／accent: 差し色（名前の四角・肩書・場面の見出し）／vignette: 周辺の暗さ（0〜100）／font_*: AE と字幕の書体（PostScript 名）／name_pos: 名前の左上／version: 書き出しの名前の後ろ（v1, v2 …）",
+ "version": "v1",
+ "fps": 30,
+ "letterbox": true,
+ "accent": "#ffd400",
+ "vignette": 45,
+ "loudness": -14,
+ "font_caption": "HiraginoSans-W6",
+ "font_name": "HiraginoSans-W8",
+ "font_role": "AvenirNext-Bold",
+ "caption_size": 40,
+ "name_pos": [120, 790]
+}

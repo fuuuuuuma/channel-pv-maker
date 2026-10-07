@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "channel-pv-maker",
+  "displayName": "チャンネル紹介 PV メーカー",
+  "version": "0.1.0",
+  "description": "YouTube チャンネルや参考動画のリンクを渡すと、軽い質問で構成を決めてから、出演者の実際の声と映像をつないだ紹介 PV（2〜5分）を作る。After Effects があれば AE で組み立て、無ければ ffmpeg とブラウザ描画だけで書き出す。",
+  "author": { "name": "Kawamura Fuma", "url": "https://github.com/fuuuuuuma" },
+  "repository": "https://github.com/fuuuuuuma/channel-pv-maker",
+  "license": "MIT",
+  "keywords": ["youtube", "promo", "trailer", "pv", "after-effects", "ffmpeg", "video-editing", "japanese"],
+  "skills": "./skills/"
+}

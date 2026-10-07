@@ -1,0 +1,18 @@
+{
+ "_説明": "fx ブロックの中身。キーは edl.py の fx の名前、type は title / brand / stat / map / list / wall / quotes / xwall / chapter / brand_end。画像は案件フォルダからの道。<b>…</b> は差し色",
+ "theme": {"bg": "#0b0b0c", "accent": "#ffd400", "accent2": "#f07a12", "brand": "#FFE73C", "dot": "#f08a00"},
+ "scenes": {
+  "title": {"type": "brand", "kicker": "CREATOR COMMUNITY", "logo": "assets/brand/logo.png",
+            "catch": [["クリエイティブで", "#ff9a1f", "#ff4d12"], ["楽しく", "#ff5fd6", "#d4119a"], ["稼ごう", "#ffb21f", "#f06c00"], ["！", "#333333", "#000000"]]},
+  "count": {"type": "stat", "kicker": "MEMBERS — 2026", "value": 470, "unit": "名", "sub": "第3期で <b>140名</b> が加入", "card": "assets/x/0000.png", "bg": "assets/thumbs/xxxx.jpg"},
+  "map": {"type": "map", "kicker": "OFFLINE MEETUPS — JAPAN", "title": "全国で オフ会",
+          "places": [{"name": "東京", "en": "TOKYO", "label": "東京オフ会", "sub": "90 CREATORS", "img": "assets/thumbs/xxxx.jpg", "at": 1.2, "card": [1560, 500]}]},
+  "contents": {"type": "list", "kicker": "INSIDE", "items": ["企画1", "企画2", "企画3"], "thumbs": ["assets/thumbs/xxxx.jpg"], "more": "ほかにも まだまだ"},
+  "events": {"type": "wall", "kicker": "EVENTS — EVERY MONTH", "title": "イベントも たくさん", "images": [{"src": "assets/banners/xxxx.jpg", "en": "SEMINAR"}]},
+  "voices": {"type": "quotes", "kicker": "MEMBERS' VOICES", "intro": "こんな声が 届いています", "items": [["深夜1人で編集してても\n必ず誰かいる", "名前 ・ 動画編集者", "@id"]], "bgs": ["assets/thumbs/xxxx.jpg"]},
+  "xwall": {"type": "xwall", "kicker": "VOICES ON X", "title": "#ハッシュタグ", "images": ["assets/x/0000.png"]},
+  "end": {"type": "brand_end", "icon": "assets/brand/icon.png", "logo": "assets/brand/logo.png",
+          "catch": [["クリエイティブで", "#ff9a1f", "#ff4d12"], ["楽しく", "#ff5fd6", "#d4119a"], ["稼ごう", "#ffb21f", "#f06c00"]],
+          "links": [["YouTube", "チャンネル名"], ["X", "@account"]]}
+ }
+}

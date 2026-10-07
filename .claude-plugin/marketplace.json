@@ -1,0 +1,8 @@
+{
+  "name": "channel-pv-maker",
+  "description": "YouTube チャンネルや参考動画のリンクから、実際の声と映像をつないだ紹介 PV（予告編・コミュニティ紹介）を作る Claude Code / Codex プラグイン",
+  "owner": { "name": "fuuuuuuma" },
+  "plugins": [
+    { "name": "channel-pv-maker", "source": "./", "description": "チャンネル・コミュニティ紹介 PV を作るスキル（channel-pv）" }
+  ]
+}
