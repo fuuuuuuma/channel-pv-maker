@@ -36,6 +36,10 @@ Claude Code か Codex に、リンクを添えて頼むだけです。スキル 
 
 最初に下調べ（数分〜十数分）→ 質問 → 構成表の承認 → 組み立て → 検品 の順に進みます。
 
+> 出演者の映像は無いけど、セミナーの告知をアニメ映画の予告っぽく作って。参考はこの予告編 https://youtu.be/xxxx
+
+動きの指示はざっくりで大丈夫です（「ゆっくり寄って」「ポンと出して」「エモく」）。スキルが動きの名前（Motion Prompt の 144 件）に置き換えて、名前で確認してから作ります。
+
 ## 必要なもの
 
 | もの | 用途 | 入れ方の例（Mac） |
@@ -62,6 +66,7 @@ python3 $PV prep && python3 $PV edges && python3 $PV faces --apply && python3 $P
 python3 $PV plan && python3 $PV scenes && python3 $PV telops && python3 $PV mix
 python3 $PV ae build && python3 $PV ae render           # AE が無ければ: python3 $PV compose
 python3 $PV qa && python3 $PV preview
+python3 $PV motion ゆっくり寄る                        # 動きの名前を探す（番号を渡すと AI への頼み方の全文）
 ```
 
 ## 注意
@@ -72,4 +77,5 @@ python3 $PV qa && python3 $PV preview
 
 ## ライセンス
 
-MIT（同梱の書体は各 OFL）
+MIT（同梱の書体は各 OFL）。動きの名前の一覧と頼み方（`skills/channel-pv/references/motion-prompt/`）は
+[Motion Prompt](https://showheyohtaki.github.io/motion-prompt/)（作者 大滝昇平・MIT License）の写しです。詳しくは `THIRD-PARTY-NOTICES.md`。

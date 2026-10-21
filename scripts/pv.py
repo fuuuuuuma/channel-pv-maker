@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """channel-pv-maker の道具。案件フォルダ（pv.project.json がある所）の中で実行する。
+動きの名前:  motion <言葉> で候補、motion <番号> で AI への頼み方（どの段でも使える。案件フォルダの外でも動く）
 順番:  doctor → init → harvest → sheets → （発言を選ぶ・構成を決める）→ edl.py を書く → timeline → fetch → voices → words → transcripts
        → edges / faces / crops（点検して edl.py・framing.json を直す）→ plan → scenes → telops → mix → ae build → ae render（AE が無ければ compose）→ qa → preview
 """
@@ -34,6 +35,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = ap.add_subparsers(dest='cmd', required=True)
     sp.add_parser('doctor', help='道具がそろっているか点検する')
+    s = sp.add_parser('motion', help='動きの名前を言葉から探す（Motion Prompt 144 件）・番号で頼み方を出す'); s.add_argument('words', nargs='*'); s.add_argument('--list', choices=['motion', 'camera', 'ui', 'lp', 'photo', 'motion2'])
     s = sp.add_parser('init', help='案件フォルダを作る'); s.add_argument('dir'); s.add_argument('--name'); s.add_argument('--lang', default='ja'); s.add_argument('--channel')
     s = sp.add_parser('harvest', help='チャンネルか動画のリンクから素材を集める'); s.add_argument('urls', nargs='+'); s.add_argument('--limit', type=int, default=0)
     s.add_argument('--min-dur', type=float, default=60); s.add_argument('--no-asr', action='store_true')
@@ -58,6 +60,9 @@ def main():
 
     if a.cmd == 'doctor': sys.exit(0 if env.doctor() else 1)
     if a.cmd == 'init': return cmd_init(a)
+    if a.cmd == 'motion':
+        from pvkit import motion
+        sys.exit(motion.main(a.words, a.list))
     p = P()
     if a.cmd == 'harvest':
         from pvkit import harvest; harvest.run(p, a.urls, a.limit, a.min_dur, no_asr=a.no_asr)

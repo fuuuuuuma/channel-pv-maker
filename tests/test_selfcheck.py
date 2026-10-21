@@ -27,7 +27,7 @@ for f in ('marketplace.json', 'plugin.json'):
 check('プラグインの定義', True)
 skill = (R / 'skills' / 'channel-pv' / 'SKILL.md').read_text()
 check('SKILL.md の頭書き', skill.startswith('---\nname: channel-pv\ndescription: '))
-for ref in ('interview', 'structure', 'pipeline', 'design', 'rules', 'qa', 'extras', 'gotchas'):
+for ref in ('interview', 'structure', 'pipeline', 'design', 'rules', 'qa', 'extras', 'gotchas', 'motion', 'trailer'):
     check(f'references/{ref}.md がある', (R / 'skills' / 'channel-pv' / 'references' / f'{ref}.md').exists())
 with tempfile.TemporaryDirectory() as d:
     r = subprocess.run([sys.executable, str(S / 'pv.py'), 'init', d + '/p', '--name', 't'], capture_output=True, text=True)
@@ -43,4 +43,20 @@ check('強調：下にはみ出さない', all(c['y'] + c['size'] * len(c['text'
 from pvkit.plan import chunk_times
 ts = chunk_times([[0, .5, 'こんにちは'], [.6, 1.0, '今日は'], [1.1, 1.6, 'いい天気']], ['こんにちは', '今日は いい天気'])
 check('字幕の切り替え時刻', ts[0] == 0 and .5 < ts[1] < .7)
+MP = R / 'skills' / 'channel-pv' / 'references' / 'motion-prompt'
+from pvkit import motion
+check('動きの名前：一覧が 144 件', len(motion.load()) == 144)
+check('動きの名前：頼み方が 144 件', len(list((MP / 'prompts').glob('*.txt'))) == 144)
+check('動きの名前：MIT の表示を同梱', 'Shohei Ohtaki' in (MP / 'LICENSE').read_text())
+check('動きの名前：「ゆっくり寄る」→ #027 ドリーイン', motion.search(['ゆっくり寄る'])[0]['id'] == '027')
+check('動きの名前：「横に流す」→ #025 パン', motion.search(['横に流す'])[0]['id'] == '025')
+check('動きの名前：「ポンと出して」→ #001 ポップイン', motion.search(['ポンと出して'])[0]['id'] == '001')
+check('動きの名前：番号で頼み方', 'Motion Prompt #044' in motion.prompt('44'))
+r = subprocess.run([sys.executable, str(S / 'pv.py'), 'motion', 'ふわふわ'], capture_output=True, text=True)
+check('pv.py motion が案件フォルダの外で動く', r.returncode == 0 and '#096' in r.stdout)
+ids = set()
+for v in motion.ALIAS.values():
+    ids |= set(v)
+known = {r['id'] for r in motion.load()}
+check('早見の番号がすべて一覧にある', ids <= known)
 print(f'\n{ok} 項目 すべて OK')
