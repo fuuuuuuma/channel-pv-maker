@@ -35,7 +35,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = ap.add_subparsers(dest='cmd', required=True)
     sp.add_parser('doctor', help='道具がそろっているか点検する')
-    s = sp.add_parser('motion', help='動きの名前を言葉から探す（Motion Prompt 144 件）・番号で頼み方を出す'); s.add_argument('words', nargs='*'); s.add_argument('--list', choices=['motion', 'camera', 'ui', 'lp', 'photo', 'motion2'])
+    s = sp.add_parser('motion', help='動きの名前を言葉から探す（Motion Prompt 168 件）・番号で頼み方を出す'); s.add_argument('words', nargs='*'); s.add_argument('--list', choices=['motion', 'camera', 'ui', 'lp', 'photo', 'motion2', 'lp2'])
     s = sp.add_parser('init', help='案件フォルダを作る'); s.add_argument('dir'); s.add_argument('--name'); s.add_argument('--lang', default='ja'); s.add_argument('--channel')
     s = sp.add_parser('harvest', help='チャンネルか動画のリンクから素材を集める'); s.add_argument('urls', nargs='+'); s.add_argument('--limit', type=int, default=0)
     s.add_argument('--min-dur', type=float, default=60); s.add_argument('--no-asr', action='store_true')

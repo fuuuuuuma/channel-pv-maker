@@ -1,4 +1,4 @@
-# Motion Prompt catalog (ja) · 144 elements · https://showheyohtaki.github.io/motion-prompt/ · columns: id	pack	category	title	tags	summary
+# Motion Prompt catalog (ja) · 168 elements · https://showheyohtaki.github.io/motion-prompt/ · columns: id	pack	category	title	tags	summary
 001	motion	登場・文字の演出	ポップイン (Pop-in)	pop,pop-in,spring,bounce,scale,icon,badge,entrance	アプリのアイコンがポンと弾んで現れ、通知バッジが遅れてポンと出る。
 002	motion	登場・文字の演出	スタガー (Stagger)	stagger,sequence,delay,cascade,bar-chart,list,entrance	グラフの棒が、少しずつ時間をずらして左から順に立ち上がる。
 003	motion	登場・文字の演出	バースト (Burst)	burst,explosion,radial,like,heart,celebrate,accent,sparkle	「いいね」のハートが点くと同時に、まわりに輪・線・粒が弾ける。
@@ -143,3 +143,27 @@
 142	motion2	切り替え・見せ場	ガラス割れ (Shatter)	shatter,glass-break,broken-glass,shards,crack,transition,impact	画面がガラスのようにひび割れ、破片が飛び散って次の画面が現れる。
 143	motion2	切り替え・見せ場	分解図 (Exploded view)	exploded-view,explode,layers,isometric,product,breakdown,explainer	スマホの部品が層ごとにばらけて中の構造を見せ、また組み上がる。
 144	motion2	切り替え・見せ場	スプリットスクリーン (Split screen)	split-screen,multi-screen,panels,side-by-side,comparison,layout	1枚の画面が2つ、3つに分かれて、別々の場面が同時に動く。
+145	lp2	スクロールで起きる演出	タイムラインアニメーション (Timeline on scroll)	timeline,scroll,history,milestones,scroll-driven,progress-line	ページを下へスクロールすると、年表の縦線が朱色で上から伸び、線の先が届いた年の点が塗られて、年と出来事が右から現れる。上へ戻すと逆にたどる。
+146	lp2	スクロールで起きる演出	スクロールテキストリビール (Scroll text reveal)	scroll,text-reveal,scroll-driven,typography,opacity,storytelling	薄いグレーの見出しの文字が、スクロールに合わせて左上から1文字ずつ濃くなり、戻すと後ろから薄くなる。
+147	lp2	スクロールで起きる演出	スタッキングカード (Stacking cards)	stacking-cards,sticky,scroll,cards,position-sticky,steps	スクロールすると、次のカードが下から上がってきて、前のカードに少しずらして重なる。下になったカードは少し縮んで暗くなる。
+148	lp2	スクロールで起きる演出	背景色の切り替え (Background color change on scroll)	background-color,scroll,section,color-transition,scroll-driven,storytelling	スクロールしてセクションが変わるたびに、ページ全体の背景がクリーム→濃紺→水色となめらかに変わる。暗い背景では文字が白になる。
+149	lp2	スクロールで起きる演出	隠れるヘッダー (Hide-on-scroll header)	header,hide-on-scroll,headroom,navigation,sticky-header,scroll-direction	下へスクロールするとヘッダーが上へ引っ込んで読む場所が広くなり、少し上へ戻すとすぐに出てくる。
+150	lp2	スクロールで起きる演出	スクロールスパイ (Scrollspy)	scrollspy,table-of-contents,toc,navigation,active-state,scroll	本文をスクロールすると、左の目次のうち、いま読んでいる見出しの項目に色が付き、次の見出しに入ると印が移る。
+151	lp2	スクロールで起きる演出	トップへ戻るボタン (Back-to-top button)	back-to-top,scroll-to-top,button,navigation,floating-button,smooth-scroll	下までスクロールすると右下に丸い矢印のボタンが現れ、押すとページが一気に先頭まで戻る。
+152	lp2	スクロールで起きる演出	スクロールで拡大 (Zoom on scroll)	zoom,scroll,image,scale,scroll-driven,hero,fullscreen	スクロールに合わせて、ページ中央の小さな写真が窓いっぱいまで広がり、周りの文字が消えて、写真の上に見出しが出る。
+153	lp2	マウス・入力への反応	3Dチルト (3D tilt on hover)	tilt,3d,hover,perspective,card,glare,parallax	カーソルがカードの上を動くと、カードがカーソルの位置に合わせて奥行きをもって傾き、表面の光の反射も一緒に動く。離れると平らに戻る。
+154	lp2	マウス・入力への反応	スポットライトホバー (Spotlight hover)	spotlight,hover,glow,cursor,radial-gradient,dark-mode,card	暗いカードの上をカーソルが動くと、カーソルの周りだけが丸く明るく照らされ、近くのカードの縁も光る。
+155	lp2	マウス・入力への反応	ホバーで画像切り替え (Image swap on hover)	image-swap,hover,crossfade,product-card,ecommerce,thumbnail	商品カードにカーソルを乗せると、Tシャツの正面の写真が後ろ姿の写真にふわっと切り替わり、離れると正面に戻る。
+156	lp2	マウス・入力への反応	テキストロール (Text roll on hover)	text-roll,hover,menu,link,stagger,typography	メニューの文字にカーソルを乗せると、文字が1文字ずつ上へ回って消え、同じ文字が朱色で下から出てくる。離れると元に戻る。
+157	lp2	マウス・入力への反応	ホバーで画像プレビュー (Hover image reveal)	hover,image-reveal,list,cursor-follow,preview,portfolio	文字だけのリストの行にカーソルを乗せると、その行の写真がカーソルの横にふわっと出て、カーソルについて動く。
+158	lp2	マウス・入力への反応	フローティングラベル (Floating label)	floating-label,form,input,label,focus,material-design	入力欄をクリックするとラベルが小さくなって欄の上の線へ移り、空いた欄に文字を打てる。空にして外すとラベルが中に戻る。
+159	lp2	マウス・入力への反応	インラインバリデーション (Inline validation)	validation,form,inline-validation,error-message,input,feedback	メールアドレスを打っている途中は欄が赤くなって「形式が正しくありません」と出て、正しく打ち終わった瞬間に緑のチェックとOKに変わる。
+160	lp2	マウス・入力への反応	ローディングボタン (Loading button)	loading-button,button,spinner,submit,success-state,microinteraction	送信ボタンを押すと、ボタンが丸く縮んで中で読み込み表示が回り、終わると緑色のチェック付き「完了」に広がる。
+161	lp2	見せ場の演出	ビュートランジション (View transition (shared element))	view-transition,shared-element,page-transition,morph,gallery,navigation	一覧の写真を押すと、その写真が1枚のまま大きくなって詳細ページの上部の写真になり、周りが詳細ページに入れ替わる。戻ると元の位置へ縮む。
+162	lp2	見せ場の演出	ライトボックス (Lightbox)	lightbox,modal,gallery,image,overlay,zoom	ギャラリーのサムネを押すと周りが暗くなり、その写真が画面の中央で大きく表示される。×を押すと元のサムネへ縮んで戻る。
+163	lp2	見せ場の演出	ホットスポット (Hotspots)	hotspots,image,tooltip,pulse,product,interactive-image	製品の絵の上で白い点が脈打ち、点を押すとその部分の説明が吹き出しで出る。別の点を押すと吹き出しが入れ替わる。
+164	lp2	見せ場の演出	カウントダウンタイマー (Countdown timer)	countdown,timer,deadline,campaign,flip,urgency	「キャンペーン終了まで」の 時:分:秒 が1秒ごとに減り、変わった数字だけが上へ抜けて新しい数字が下から入る。
+165	lp2	見せ場の演出	シェイプディバイダー (Animated shape divider)	shape-divider,wave,section-divider,svg,ambient,loop	青いセクションと白いセクションの境目にある波の形が、2枚重なってゆっくりゆれ続ける。
+166	lp2	見せ場の演出	いいねアニメーション (Like button animation)	like-button,heart,microinteraction,burst,favorite,counter	ハートを押すと赤く塗られてポンと弾み、周りに小さな粒が散って、横の数字が1つ増える。もう一度押すと元に戻る。
+167	lp2	見せ場の演出	スクロールダウンの合図 (Scroll-down cue)	scroll-cue,scroll-indicator,scroll-down,hero,arrow,loop	ファーストビューの下で、「SCROLL」の文字とマウスの形の中の点、両わきの矢印が、下へ促す動きをくり返す。
+168	lp2	見せ場の演出	背景動画 (Background video)	background-video,hero,video,autoplay,loop,first-view	ファーストビューの背景で雲と波が流れ続け、その上に見出しとボタンが動かずに乗っている。

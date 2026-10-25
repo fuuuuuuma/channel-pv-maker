@@ -47,8 +47,8 @@ ts = chunk_times([[0, .5, 'こんにちは'], [.6, 1.0, '今日は'], [1.1, 1.6,
 check('字幕の切り替え時刻', ts[0] == 0 and .5 < ts[1] < .7)
 MP = R / 'skills' / 'channel-pv' / 'references' / 'motion-prompt'
 from pvkit import motion
-check('動きの名前：一覧が 144 件', len(motion.load()) == 144)
-check('動きの名前：頼み方が 144 件', len(list((MP / 'prompts').glob('*.txt'))) == 144)
+check('動きの名前：一覧が 168 件', len(motion.load()) == 168)
+check('動きの名前：頼み方が 168 件', len(list((MP / 'prompts').glob('*.txt'))) == 168)
 check('動きの名前：MIT の表示を同梱', 'Shohei Ohtaki' in (MP / 'LICENSE').read_text())
 check('動きの名前：「ゆっくり寄る」→ #027 ドリーイン', motion.search(['ゆっくり寄る'])[0]['id'] == '027')
 check('動きの名前：「横に流す」→ #025 パン', motion.search(['横に流す'])[0]['id'] == '025')
