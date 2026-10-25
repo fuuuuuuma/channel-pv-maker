@@ -6,6 +6,8 @@
 - **演出の型**：手本を 1〜2 本選んで学ぶ所・取らない所を書く・山場を 1 つに絞る・静かな間 2 か所・音の受け渡し 2 か所（audio.json での作り方つき）・音の 3 層を `references/directing.md` に
 - **見る道具**：`pv.py look`（cuts 全カットの頭・中・終わり／fast 速い動きの全コマ／strip 区間の全コマ／crop 原寸の切り抜き／read 文字が読み切れるか）。
   `qa` が cuts・fast の一覧と、字幕・名前の札・強調が読み切れる長さ出ているかの検査を出す
+- **手本と言葉の探し方・無料の効果音**：映画のスチル（SHOT.cafe・FILMGRAB）で色と明かりの手本、照明・構図の名前（Cinematique）を探す手順と守ること（スチルは見るだけ・言い回しは写さない・1 カット 1 技法）を `directing.md` に。
+  効果音ラボ・Mixkit の使える範囲と禁止事項（配る物に同梱しない・AI 学習しない）を `extras.md` に
 
 ## 0.2.0（2026-10-21）
 - **動きの名前**：Motion Prompt（MIT License © 2026 Shohei Ohtaki）の日本語の一覧 144 件と頼み方の全文を `skills/channel-pv/references/motion-prompt/` に同梱。
