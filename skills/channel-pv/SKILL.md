@@ -31,9 +31,10 @@ doctor の「必須」が欠けていたら、入れ方（`pip install -r <プ�
    「何のチャンネル／誰が出ているか／強い発言の候補／数字の実績（人数・回数・出典と日付）／使える絵と焼き込みの位置」をつかむ。参考動画を渡されたら先に見る。
    **下調べの結果を 3〜5 行で先に見せる**（素材の量と偏り・数字の食い違い・気になる点）。発言の取れる動画が少ない・1 本に偏るときは、ほかの動画を求める。
 2. **軽い質問を 1 回だけ（4 問まで）** — 依頼文で答えが出ている項目は聞かずに前提として書く。下調べから作った「構成の案 2〜3 つ」と「見た目の案」を、
-   実際の発言を添えて選択式で見せる。長さ・音・費用、素材の許可と誘いの行き先もまとめて聞く。→ `references/interview.md`
+   実際の発言と手本を添えて選択式で見せる。長さ・音・費用、素材の許可と誘いの行き先もまとめて聞く。→ `references/interview.md`
 3. **構成表を作って承認をもらう** — `planning/plan.md` に幕ごとの流れ・使う発言（動画 ID・秒・話者・字幕）・場面・強調・長さを表で。
-   ここで「OK」をもらうまで組み立てない（作り直しが一番高くつく）。→ `references/structure.md`
+   山場 1 つ・静かな間 2 か所・音の受け渡し 2 か所をどこで作るかも書く。ここで「OK」をもらうまで組み立てない（作り直しが一番高くつく）。
+   → `references/structure.md`・`references/directing.md`
 4. **設計図を書く** — `build/edl.py` の「ここから〜ここまで」に line / fx / ai / montage を並べる。字幕は話した言葉に近い形で、
    長い発言は区切って切り替える。強調（縦書き）と同じ言葉は字幕に入れない。→ `references/pipeline.md`
 5. **素材の下ごしらえと点検** — `prep`（時刻表→1080p 取得→声の分離→語の時刻→高精度の文字起こし）→ `edges`（元動画の編集点の切れ端）
@@ -43,8 +44,10 @@ doctor の「必須」が欠けていたら、入れ方（`pip install -r <プ�
    → `telops` → `mix`。場面は書き出す前に `still scenes <名前> 2,5` で 1 コマ見て直す。→ `references/design.md`
 7. **組み立てと書き出し** — After Effects があれば `ae build`（確認用のコマ `build/_ae_check/sheet.jpg` を必ず見る）→ `ae render`。
    無ければ `compose`。どちらも `exports/<名前>_<版>.mp4`。
-8. **検品** — `qa`（音量・一瞬の閃光や黒・全切り替えの一覧・声の文字起こし）。一覧の目視はサブエージェントに任せられるなら任せ、
-   指摘は自分で拡大して確かめてから直す。`preview` でスマホ用の軽い版も作る。→ `references/qa.md`
+8. **検品と審査** — `qa`（音量・一瞬の閃光や黒・全切り替えの一覧・全カットの頭/中/終わり・速い動きの全コマ・文字が読み切れるか・声の文字起こし）。
+   一覧の目視はサブエージェントに任せられるなら任せ、指摘は自分で拡大して（`pv.py look crop`）確かめてから直す。直すことが無くなったら、
+   作っていない担当に 7 観点を 1〜10 点で採点させ、時刻つきの直しで直してもう一度（全観点 8 点以上・致命 0、3 周まで）。
+   `preview` でスマホ用の軽い版も作る。→ `references/qa.md`・`references/review.md`
 9. **報告** — 結論を先に。長さ・何を入れたか・変えた所／触っていない所／確認してほしい所。ファイルは絶対パスで。
 
 ## 動きを決めるとき（どの段でも）
@@ -85,8 +88,8 @@ doctor の「必須」が欠けていたら、入れ方（`pip install -r <プ�
 ## Claude Code と Codex の違い
 
 - 質問：Claude Code は選択式の質問ツール（AskUserQuestion）で 1 回にまとめる。Codex は番号つきの選択肢を本文で出し、返事を待つ。
-- 目視の分担：サブエージェントが使えるなら、切り替えの一覧（build/_qa/cut_*.jpg）の検品を任せる（`references/qa.md` に頼み方の雛形）。
-  使えなければ自分で全部見る。
+- 目視の分担：サブエージェントが使えるなら、切り替えの一覧（build/_qa/cut_*.jpg）の検品と、作品の審査を任せる（`references/qa.md`・`references/review.md` に頼み方の雛形）。
+  使えなければ自分で全部見て、審査は新しい会話に頼む。
 - After Effects の操作は同じ（Mac は osascript、Windows は AfterFX.com）。画面にダイアログが出て止まったときの直し方は `references/gotchas.md`。
 
 ## 参照ファイル（必要になった段で開く）
@@ -98,7 +101,9 @@ doctor の「必須」が欠けていたら、入れ方（`pip install -r <プ�
 | `references/pipeline.md` | edl.py を書く・命令を順に実行するとき（設計図の書き方・framing・各命令の出力） |
 | `references/design.md` | 見た目を決める・scenes.json と style.json を書くとき（場面の種類の一覧と例） |
 | `references/rules.md` | 構成表の点検と、検品の前（編集の決まり 25 項目） |
+| `references/directing.md` | 手本を選ぶ・構成表に山場と間と音の受け渡しを書くとき |
 | `references/qa.md` | 書き出した後 |
+| `references/review.md` | 検品で直すことが無くなった後（作っていない担当の採点と直し） |
 | `references/extras.md` | AI 動画・音楽・効果音・X の投稿・バナーを使うとき |
 | `references/motion.md` | 動き・カメラワーク・切り替えを決めるとき（言葉 → 名前の早見表・状況の既定） |
 | `references/motion-prompt/` | 動きの名前 144 件の一覧（catalog.tsv）と頼み方の全文（prompts/NNN.txt）。`pv.py motion` が読む |

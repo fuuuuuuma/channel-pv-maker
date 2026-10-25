@@ -56,6 +56,7 @@ def main():
     s = sp.add_parser('compose', help='AE 無しで書き出す（ffmpeg）'); s.add_argument('--keep', action='store_true')
     s = sp.add_parser('qa', help='書き出した動画を検品する'); s.add_argument('--video'); s.add_argument('--no-asr', action='store_true')
     s = sp.add_parser('preview', help='スマホで見られる軽い確認版'); s.add_argument('--mb', type=float, default=27)
+    s = sp.add_parser('look', help='見る道具（cuts / fast / strip / crop / read）。使い方は look -h'); s.add_argument('args', nargs=argparse.REMAINDER)
     a = ap.parse_args()
 
     if a.cmd == 'doctor': sys.exit(0 if env.doctor() else 1)
@@ -63,6 +64,9 @@ def main():
     if a.cmd == 'motion':
         from pvkit import motion
         sys.exit(motion.main(a.words, a.list))
+    if a.cmd == 'look':
+        import look
+        return look.main(a.args or ['-h'])
     p = P()
     if a.cmd == 'harvest':
         from pvkit import harvest; harvest.run(p, a.urls, a.limit, a.min_dur, no_asr=a.no_asr)

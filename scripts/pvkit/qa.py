@@ -2,11 +2,20 @@
   1) 音量（LUFS）と、全コマの明るさの「1〜2 コマだけの跳ね」（白い閃光・一瞬の黒）を数える（0 件が合格）
   2) すべての切り替え・寄り・名前・強調の前後 ±0.25 秒を 1 コマずつ並べた一覧 → build/_qa/cut_*.jpg（切れ端・焼き込み・顔の切れを目で見る）
   3) 高速の連打は全コマを並べる → build/_qa/montage_*.jpg
-  4) 声だけ（stems/voice.wav）を発言ごとに区切って文字起こし → build/_qa/voices.txt（頭と終わりに別の言葉が混ざっていないか）"""
-import json, re, shutil, subprocess
+  4) 声だけ（stems/voice.wav）を発言ごとに区切って文字起こし → build/_qa/voices.txt（頭と終わりに別の言葉が混ざっていないか）
+  5) 字幕・名前・強調が読み切れる長さ出ているか（build/_qa/texts.json）
+  6) 全カットの頭・中・終わり → build/_qa/cuts_*.jpg、動きの速い所の全コマ → build/_qa/fast_*.jpg（scripts/look.py）"""
+import json, os, re, shutil, subprocess
 import numpy as np
 from PIL import Image, ImageDraw
 from . import env, asr
+import look
+
+
+def _big_text(b):
+    if isinstance(b, list):
+        return ''.join(x[0] if isinstance(x, (list, tuple)) else x for x in b)
+    return (b or '').replace('\n', '')
 
 
 def run(P, video=None, no_asr=False):
@@ -30,6 +39,14 @@ def run(P, video=None, no_asr=False):
             run_ = None
     if blacks: print('0.3 秒未満の真っ黒（一瞬の抜けに見えないか確かめる）', blacks)
     json.dump({'frames': len(Y), 'spikes': spikes, 'short_blacks': blacks}, open(OUT / 'luma.json', 'w'))
+
+    # 字幕と強調は声と一緒に出る（耳でも分かる）。名前の札は声が無いので読む時間が要る
+    big = {o['k']: o.get('big') for o in TL['blocks'] if o.get('big')}
+    texts = [dict(text=s['text'], start=s['t0'], end=s['t1'], voice=True, kind='字幕') for s in D['subs']] + \
+            [dict(text=f"{x['name']} {x.get('role', '')}".strip(), start=x['t0'], end=x['t1'], voice=False, kind='名前') for x in D['names']] + \
+            [dict(text=_big_text(big[b['k']]), start=b['t'], end=b['end'], voice=True, kind='強調') for b in D['bigs'] if big.get(b['k'])]
+    json.dump(texts, open(OUT / 'texts.json', 'w'), ensure_ascii=False, indent=1)
+    look.print_read(look.read_check(texts), len(texts))
 
     P_ = [p for p in TL['pics'] if p.get('look') != 'cut']
     cuts = sorted({round(p['t0'], 3) for p in P_} | {round(p['t1'], 3) for p in P_} | {round(q['t'] + .1, 3) for q in D['punches']}
@@ -57,6 +74,11 @@ def run(P, video=None, no_asr=False):
                 im = Image.fromarray(f); ImageDraw.Draw(im).text((3, 3), f'{a0 + (part + j) / fps:.2f}', fill=(255, 60, 60)); sheet.paste(im, ((j % 12) * 240, (j // 12) * 135))
             sheet.save(OUT / f'montage_{part // 144}.jpg', quality=80)
         print('連打の全コマ', len(fr))
+
+    os.environ.setdefault('FFMPEG', env.ffmpeg())
+    segs = sorted({(round(p['t0'], 3), round(p['t1'], 3)) for p in P_} | {(round(f['t0'], 3), round(f['t1'], 3)) for f in D['fx']})
+    look.cuts(V, [s for s in segs if s[1] > s[0]], OUT)
+    look.fast(V, 3, segs, out=OUT)
 
     vw = P.build / 'stems' / 'voice.wav'
     if no_asr or not vw.exists(): return

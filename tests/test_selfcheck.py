@@ -16,7 +16,7 @@ def check(name, cond):
     ok += 1
 
 
-for p in [S / 'pv.py', *sorted((S / 'pvkit').glob('*.py')), S / 'templates' / 'edl.py']:
+for p in [S / 'pv.py', S / 'look.py', *sorted((S / 'pvkit').glob('*.py')), S / 'templates' / 'edl.py']:
     py_compile.compile(str(p), doraise=True)
 check('Python の構文', True)
 for f in ('style.json', 'scenes.json', 'audio.json', 'framing.json', 'montage_pick.json'):
@@ -27,7 +27,7 @@ for f in ('marketplace.json', 'plugin.json'):
 check('プラグインの定義', True)
 skill = (R / 'skills' / 'channel-pv' / 'SKILL.md').read_text()
 check('SKILL.md の頭書き', skill.startswith('---\nname: channel-pv\ndescription: '))
-for ref in ('interview', 'structure', 'pipeline', 'design', 'rules', 'qa', 'extras', 'gotchas', 'motion', 'trailer'):
+for ref in ('interview', 'structure', 'pipeline', 'design', 'rules', 'qa', 'review', 'directing', 'extras', 'gotchas', 'motion', 'trailer'):
     check(f'references/{ref}.md がある', (R / 'skills' / 'channel-pv' / 'references' / f'{ref}.md').exists())
 with tempfile.TemporaryDirectory() as d:
     r = subprocess.run([sys.executable, str(S / 'pv.py'), 'init', d + '/p', '--name', 't'], capture_output=True, text=True)
@@ -35,6 +35,8 @@ with tempfile.TemporaryDirectory() as d:
     r = subprocess.run([sys.executable, 'edl.py'], cwd=Path(d) / 'p' / 'build', capture_output=True, text=True)
     tl = json.load(open(Path(d) / 'p' / 'build' / 'timeline.json'))
     check('設計図の雛形が時刻表を書く', r.returncode == 0 and tl['total'] > 10 and tl['pics'])
+import look
+check('見る道具：読み切れない文字', [b['text'] for b in look.read_check([dict(text='見つけ次第即退出', start=0, end=.4), dict(text='はい', start=1, end=1.6, voice=True)])] == ['見つけ次第即退出'])
 from pvkit.render import layout
 cols = layout([('仲間がいて', 'white'), ('初めて', 'white'), ('幸せに', 'pink'), ('なれる', 'white')])
 check('強調：効かせる語は左の端', [c for c in cols if c['text'] == '幸せに'][0]['x'] < 400)
