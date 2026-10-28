@@ -40,10 +40,13 @@ async function newPage() {
   return pg;
 }
 const transparent = what === 'telops';
+// 場面のうち "overlay": true のものは透明つき（ProRes 4444）で書き出し、映像の上に重ねる
+let SC = {}; try { if (!transparent) SC = JSON.parse(fs.readFileSync(path.join(PROJ, 'build', 'scenes.json'), 'utf8')).scenes || {}; } catch (e) {}
+const alphaOf = k => transparent || !!(SC[k] && SC[k].overlay);
 async function shot(pg, k, t, file) {
   await pg.evaluate(([k, t, tr]) => tr ? window.renderTelop(k, t) : window.renderFx(k, t), [k, t, transparent]);
   await pg.evaluate(() => Promise.all([...document.images].map(i => i.complete && i.naturalWidth ? 0 : i.decode().catch(() => 0))));
-  await pg.screenshot({ path: file, omitBackground: transparent });
+  await pg.screenshot({ path: file, omitBackground: alphaOf(k), timeout: 120000 });   // 重い場面・書き出しと重なって混む時も止めない（30 秒では時間切れになった）
 }
 const outDir = path.join(PROJ, 'build', transparent ? 'telop' : 'fx'); fs.mkdirSync(outDir, { recursive: true });
 let durs = {};
@@ -54,21 +57,36 @@ if (mode === 'still') {
   for (const t of a3.split(',').map(Number)) { const f = path.join(outDir, `_still_${a2}_${t}.png`); await shot(pg, a2, t, f); console.log(f); }
 } else {
   const want = (a1 ? a1.split(',').filter(Boolean) : []).length ? a1.split(',') : Object.keys(durs);
-  const K = 4, fps = 30, queue = want.filter(k => { if (!(k in durs)) console.error('無い:', k); return k in durs; });
+  // 1 コマを何回撮って重ねるか（動きのぼかし）。既定 4。止まった文字や額だけの場面は scenes.json の "mblur": 1 で 4 倍速く書ける。PV_SUBFRAMES・PV_TABS で全体を替える
+  const K0 = Number(process.env.PV_SUBFRAMES || 4), fps = 30, queue = want.filter(k => { if (!(k in durs)) console.error('無い:', k); return k in durs; });
+  // 長い場面は 150 コマ（5 秒）ずつに分けて、空いているタブで同時に描く。全部そろった場面から ProRes にまとめる
+  const CH = 150, left = {}, tasks = [];
+  for (const k of queue) {
+    const N = Math.round(durs[k] * fps), K = Math.max(1, Number((SC[k] && SC[k].mblur) || K0)), dir = path.join(outDir, `_${k}`);
+    fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir);
+    left[k] = Math.ceil(N / CH);
+    for (let a = 0; a < N; a += CH) tasks.push({ k, N, K, dir, a, b: Math.min(N, a + CH) });
+  }
+  tasks.sort((x, y) => y.N - x.N || x.a - y.a);                // 長い場面から先に（最後に 1 枚だけ残って待つのを防ぐ）
+  function encode(k, N, K, dir) {
+    const al = alphaOf(k);
+    const vf = `${al ? 'format=rgba,' : ''}tmix=frames=${K},select='eq(mod(n\\,${K})\\,${K - 1})',setpts=N/${fps}/TB`;
+    const enc = al ? ['-c:v', 'prores_ks', '-profile:v', '4444', '-pix_fmt', 'yuva444p10le'] : ['-c:v', 'prores_ks', '-profile:v', '3', '-pix_fmt', 'yuv422p10le'];
+    const r = spawnSync(FF, ['-v', 'error', '-y', '-framerate', String(fps * K), '-i', path.join(dir, 's_%05d.png'), '-vf', vf, '-r', String(fps), ...enc, path.join(outDir, `${k}.mov`)]);
+    if (r.status !== 0) console.error(k, String(r.stderr || r.error)); else fs.rmSync(dir, { recursive: true, force: true });
+    const pr = spawnSync(FF.replace(/ffmpeg$/, 'ffprobe'), ['-v', 'error', '-count_packets', '-select_streams', 'v:0', '-show_entries', 'stream=nb_read_packets', '-of', 'csv=p=0', path.join(outDir, `${k}.mov`)]);
+    const got = parseInt(String(pr.stdout || '').trim(), 10);
+    if (got !== N) { console.error(`!! ${k} の書き出しが ${got} コマで切れた（必要 ${N} コマ）`); process.exitCode = 1; }   // 途中で切れたら止める（前は黙って短い動画になった）
+    console.log(k, N, 'コマ →', path.join(outDir, `${k}.mov`));
+  }
   async function worker() {
     const pg = await newPage();
-    while (queue.length) {
-      const k = queue.shift(); const dir = path.join(outDir, `_${k}`);
-      fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir);
-      const N = Math.round(durs[k] * fps); let j = 0;
-      for (let i = 0; i < N; i++) for (let s = 0; s < K; s++) await shot(pg, k, i / fps + s * (0.5 / fps) / K, path.join(dir, `s_${String(j++).padStart(5, '0')}.png`));
-      const vf = `${transparent ? 'format=rgba,' : ''}tmix=frames=${K},select='eq(mod(n\\,${K})\\,${K - 1})',setpts=N/${fps}/TB`;
-      const enc = transparent ? ['-c:v', 'prores_ks', '-profile:v', '4444', '-pix_fmt', 'yuva444p10le'] : ['-c:v', 'prores_ks', '-profile:v', '3', '-pix_fmt', 'yuv422p10le'];
-      const r = spawnSync(FF, ['-v', 'error', '-y', '-framerate', String(fps * K), '-i', path.join(dir, 's_%05d.png'), '-vf', vf, '-r', String(fps), ...enc, path.join(outDir, `${k}.mov`)]);
-      if (r.status !== 0) console.error(k, String(r.stderr || r.error)); else fs.rmSync(dir, { recursive: true, force: true });
-      console.log(k, N, 'コマ →', path.join(outDir, `${k}.mov`));
+    while (tasks.length) {
+      const { k, N, K, dir, a, b } = tasks.shift();
+      for (let i = a; i < b; i++) for (let s = 0; s < K; s++) await shot(pg, k, i / fps + s * (0.5 / fps) / K, path.join(dir, `s_${String(i * K + s).padStart(5, '0')}.png`));
+      if (--left[k] === 0) encode(k, N, K, dir);
     }
   }
-  await Promise.all(Array.from({ length: Math.min(3, queue.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(Number(process.env.PV_TABS || 3), tasks.length) }, worker));
 }
 await browser.close(); srv.close();

@@ -35,6 +35,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = ap.add_subparsers(dest='cmd', required=True)
     sp.add_parser('doctor', help='道具がそろっているか点検する')
+    s = sp.add_parser('texture', help='質感のある地（紙・石目・大理石）の PNG を作る'); s.add_argument('kind', choices=['paper', 'stone', 'marble'])
+    s.add_argument('--color', default='#efe7da'); s.add_argument('--out', required=True); s.add_argument('--seed', type=int, default=7); s.add_argument('--strength', type=float, default=1.)
+    s = sp.add_parser('beats', help='曲の拍の時刻を書き出す（映像を拍で切るとき）'); s.add_argument('wav'); s.add_argument('--out')
     s = sp.add_parser('motion', help='動きの名前を言葉から探す（Motion Prompt 168 件）・番号で頼み方を出す'); s.add_argument('words', nargs='*'); s.add_argument('--list', choices=['motion', 'camera', 'ui', 'lp', 'photo', 'motion2', 'lp2'])
     s = sp.add_parser('init', help='案件フォルダを作る'); s.add_argument('dir'); s.add_argument('--name'); s.add_argument('--lang', default='ja'); s.add_argument('--channel')
     s = sp.add_parser('harvest', help='チャンネルか動画のリンクから素材を集める'); s.add_argument('urls', nargs='+'); s.add_argument('--limit', type=int, default=0)
@@ -61,6 +64,10 @@ def main():
 
     if a.cmd == 'doctor': sys.exit(0 if env.doctor() else 1)
     if a.cmd == 'init': return cmd_init(a)
+    if a.cmd == 'texture':
+        from pvkit import texture; return texture.make(a.kind, a.color, a.out, a.seed, a.strength)
+    if a.cmd == 'beats':
+        from pvkit import beats; return beats.run(a.wav, a.out)
     if a.cmd == 'motion':
         from pvkit import motion
         sys.exit(motion.main(a.words, a.list))

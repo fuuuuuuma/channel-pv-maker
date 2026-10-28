@@ -58,6 +58,8 @@ fx('end', 6.5)
 - 名前の札 `names` は 1 人目に出てきたときだけ。場所の札（「東京オフ会」「TOKYO — 90 CREATORS」）にも使える。
 - 強調 `big` は右の列から読む。白（white）を右の端、効かせる語（pink / red / ybox）を左の端に自動で置く。
   置き方が顔に重なるときは `layout=[dict(text, style, size, x, y, from_='R', at=0), ...]` で手で決める（x は列の左端・size は 1 文字の px）。
+- 素材の映像は `ai(k, file, 秒, src=使い始めの秒, zoom=(1.0, 1.04), box=[x, y, 幅, 高さ], fade=溶けて入る秒, fout=黒へ消える秒)`。前の映像と `gap=-.5, fade=.5` でディゾルブ。
+  映像の上の文字は `over(場面, 秒, at=直前のブロックの始まりからの秒)`（scenes.json で `"overlay": true`）。時間は進まない
 - 寄り `punch` は強調の瞬間に話者の顔へ 0.22 秒で寄る。2 人以上映る絵では `punch=dict(face='left')` のように話者を指す。
 
 ## 切り取り（build/framing.json）

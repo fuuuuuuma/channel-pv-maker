@@ -6,7 +6,8 @@
     ('b', 動画ID, 元の秒, 始, 終[, 見た目])  差し込み（B ロール）。話している本人の顔を出すときは使わない（口がずれる）
     見た目: '' 普通 / 'night' 夜の色（色を落として青く沈める）
 - fx … ブラウザで描く場面（題字・数字・地図・一覧・壁・声・X・終わり など）。中身は build/scenes.json の同じキー
-- ai … AI で作った動画などの完成素材をそのまま置く（file は案件フォルダからの道）
+- ai … AI で作った動画・フリー素材の動画などの完成素材を置く（file は案件フォルダからの道）。使い始めの秒・ゆっくり寄る・枠に入れる・溶けて入る
+- over … 直前のブロックの上に、透明の場面（scenes.json で "overlay": true）を重ねる。時間は進めない（映像の上の文字・額・エンドロール）
 - montage … montage_pick.json の絵を数コマずつ連打する（締めの前など）
 """
 import json
@@ -40,8 +41,18 @@ def fx(k, dur, gap=0., dip=False, voice=None, voice_at=0., sub=()):
     B.append(d)
 
 
-def ai(k, file, dur, gap=0., dip=False):
-    B.append(dict(t='fx', k=k, dur=dur, gap=gap, dip=dip, kind='ai', file=file))
+def ai(k, file, dur, gap=0., dip=False, src=0., zoom=None, box=None, fade=0., fout=0., shift=None, matte=None):
+    """src: 素材の何秒目から使うか zoom: (始まりの倍率, 終わりの倍率) 例 (1.0, 1.05) でゆっくり寄る
+    box: [x, y, 幅, 高さ] の枠に収める（はみ出しは切る。省くと全画面） fade: 溶けて入る秒（負の gap で前の映像と重ねるとディゾルブ） fout: 黒へ溶けて消える秒
+    shift: [右へ px, 下へ px] 枠の中で絵をずらす（顔が黒帯で切れるときに下げる。zoom を少し上げて余白を作る）
+    matte: 透明の場面の名前。その場面の文字や形の中だけに映像を見せる（巨大な名前の中に本人の映像など。場面は over() で同じ時間に置く。box とは同時に使えない）"""
+    B.append(dict(t='fx', k=k, dur=dur, gap=gap, dip=dip, kind='ai', file=file, src=src, zoom=list(zoom) if zoom else None,
+                  box=list(box) if box else None, fade=fade, fout=fout, shift=list(shift) if shift else None, matte=matte))
+
+
+def over(k, dur, at=0.):
+    """直前のブロック（over 以外）の始まりから at 秒後に、透明の場面 k を dur 秒重ねる。時間は進めない"""
+    B.append(dict(t='fx', k=k, dur=dur, gap=0., dip=False, over=True, at=at))
 
 
 def montage(k='mont', gap=0.):
@@ -66,6 +77,10 @@ fx('end', 6.5)
 # ---- 時刻を確定（ここから下は触らない）
 T = 0.0; out = []
 for blk in B:
+    if blk.get('over'):                                     # 重ねる場面：直前のブロックの始まりから数え、時間は進めない
+        base = next(o for o in reversed(out) if not o.get('over'))
+        o = dict(blk); o['T'] = round(base['T'] + blk['at'], 3); o['end'] = round(o['T'] + blk['dur'], 3)
+        out.append(o); continue
     T += blk['gap']
     o = dict(blk); o['T'] = round(T, 3)
     if blk['t'] == 'line':
@@ -96,7 +111,7 @@ for o in out:
         for i, c in enumerate(o['clips']):
             pics.append(dict(vid=c['vid'], src=c['t'], t0=round(t, 3), t1=round(t + c['f'] / FPS, 3), sync=False, look='cut', blk=o['k'], first=(i == 0), dip=False, hard=True))
             t += c['f'] / FPS
-    else:
+    elif not o.get('over'):
         pics.append(dict(fxk=o['k'], t0=o['T'], t1=o['end'], blk=o['k'], first=True, dip=o['dip']))
 pics.sort(key=lambda p: p['t0'])
 for a_, b_ in zip(pics, pics[1:]):                         # 重なりは後ろ優先、隙間は前の絵を延ばす（暗転 dip のときだけ黒を残す）

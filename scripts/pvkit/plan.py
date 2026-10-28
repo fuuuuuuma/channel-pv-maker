@@ -81,13 +81,20 @@ def build(P):
     for p in pics: blk_end[p['blk']] = max(blk_end.get(p['blk'], 0), p['t1'])
 
     fxl = []
+    SC = P.jload('scenes.json', {}).get('scenes', {})
+    mattes = {o['matte'] for o in TL['blocks'] if o.get('matte')}       # 文字の形に映像を抜く場面（それ自体は重ねない）
     for n, o in enumerate(TL['blocks']):
         if o['t'] != 'fx' or o.get('kind') == 'montage': continue
         nxt = TL['blocks'][n + 1] if n + 1 < len(TL['blocks']) else None
         ai = o.get('kind') == 'ai'
         f = (P.root / o['file']) if ai else (P.build / 'fx' / f"{o['k']}.mov")
-        fxl.append(dict(k=o['k'], t0=o['T'], t1=o['end'], file=str(f), ai=ai,
-                        fout=.3 if nxt and nxt['t'] == 'line' and not nxt.get('dip') and not ai else 0))
+        x = dict(k=o['k'], t0=o['T'], t1=o['end'], file=str(f), ai=ai,
+                 fout=.3 if nxt and nxt['t'] == 'line' and not nxt.get('dip') and not ai else 0)
+        if ai: x.update(src=o.get('src') or 0., zoom=o.get('zoom'), box=o.get('box'), shift=o.get('shift'), fade=o.get('fade') or 0., fout=o.get('fout') or 0.)
+        if ai and o.get('matte'): x['matte'] = str(P.build / 'fx' / f"{o['matte']}.mov")
+        if not ai and o['k'] in mattes: x['matte_only'] = True
+        if not ai and SC.get(o['k'], {}).get('blend'): x['blend'] = SC[o['k']]['blend']     # screen / add：光漏れ・光の粒を明るく重ねる
+        fxl.append(x)
 
     punches, bigs = [], []
     tmp = P.build / '_chk'; tmp.mkdir(exist_ok=True)
@@ -137,6 +144,8 @@ def build(P):
     if bad: print('字幕に句読点があります（外す）:', bad)
 
     names = [x for o in TL['blocks'] for x in o.get('names', [])]
+    if isinstance(S.get('letterbox_open'), str):           # letterbox_open: この場面の頭で黒帯を開いて全面に（山場は枠を外す）
+        S['letterbox_open'] = next(round(o['T'], 3) for o in TL['blocks'] if o.get('k') == S['letterbox_open'])
     bars = [dict(t0=round(o['voice']['t0'] - .5, 3), t1=round(o['end'], 3)) for o in TL['blocks'] if o['t'] == 'fx' and o.get('voice')] if S['letterbox'] else []
     checks = sorted({round(b['t'] + 1.0, 2) for b in bigs} | {round(x['t0'] + .9, 2) for x in names} | {round(s['t0'] + .5, 2) for s in subs[::3]}
                     | {round(f['t0'] + min(2.5, (f['t1'] - f['t0']) / 2), 2) for f in fxl})

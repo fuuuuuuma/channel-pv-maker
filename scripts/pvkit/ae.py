@@ -6,7 +6,7 @@ AE は同じ PC の別の作業と共用していることがある：開いて�
 import json, os, shutil, subprocess, time
 from pathlib import Path
 from . import env
-from .project import probe_dur
+from .project import probe_dur, check_mix
 
 AE_DIR = env.KIT / 'ae'
 
@@ -77,7 +77,8 @@ def render(P, keep_mov=False):
 
 def mux(P, mov, keep_mov=False):
     D = P.jload('_comp.json'); out = P.exports / f"{D['name']}.mp4"
+    check_mix(P, D['total'])
     subprocess.run([env.ffmpeg(), '-v', 'error', '-y', '-i', str(mov), '-i', str(P.build / 'mix.wav'), '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-preset', 'slow',
-                    '-crf', '16', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '320k', '-movflags', '+faststart', '-shortest', str(out)], check=True)
+                    '-crf', '16', '-pix_fmt', 'yuv420p', '-c:a', env.aac(), '-b:a', '320k', '-movflags', '+faststart', '-shortest', str(out)], check=True)
     if not keep_mov: Path(mov).unlink(missing_ok=True)
     print('書き出し →', out, f'{probe_dur(out):.1f}秒', f'{out.stat().st_size / 1e6:.0f}MB')

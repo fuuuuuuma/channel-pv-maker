@@ -39,6 +39,13 @@
 | `xwall` | X の投稿の画像を斜めの壁にだんだん速く貼り、中央に見出し | kicker, title, images, title_at |
 | `chapter` | 章の区切り | kicker, title, size, bg |
 | `brand_end` | 終わり：アイコン・ロゴ・キャッチ・リンク | icon, logo, catch, links（[[YouTube, チャンネル名], [X, @アカウント]]） |
+| `card` | 行ごとに大きさを変えた文字（予告の煽り・題名・お願い）。中央・下・左右にそろえる | lines（[文字, 's'〜'xxl', {en, script, w, color}]）, kicker, pos, dim, foot |
+| `photo` | 写真 1 枚（白い縁）＋西暦（数える・巻き戻す）＋年齢＋一言 | img, year, from, age, text, label, side |
+| `credits` | エンドロール（名前が流れ、最後に言葉が止まる） | sections, col, win_y, win_h, last |
+| `countdown` | 10→1 のカウントダウン | from, lead, dim, dim_box, center |
+
+どの場面も `"overlay": true` で地が透明になり、`over` で映像の上に重ねられる。`hole: [x, y, 幅, 高さ]` はその四角だけ地を抜く（映像の窓・額）。
+見た目は scenes.json の `theme`（bg・fg・fg2・accent・line・land・shade・mat・`font: "serif"`（明朝とセリフの英字）・`light: true`（明るい地））で替える。使い方の例は `wedding.md`
 
 書き出す前に `still scenes <名前> 1,3,5` で数コマ見る。文字がはみ出す・カードが重なる・画面の外に出る所を直してから `scenes`。
 地図のカードの位置（card）は画面の座標（1920×1080）。点と重ならず、黒帯の内側（y 140〜940）に収める。

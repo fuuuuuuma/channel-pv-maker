@@ -79,6 +79,12 @@ def ffmpeg_has(filter_name):
     return any(len(l.split()) > 1 and l.split()[1] == filter_name for l in r.stdout.splitlines())
 
 
+def aac():
+    """書き出しの音の変換器。Mac の aac_at は山の持ち上がりが小さい（-2dB の音が ffmpeg の aac で +0.2、aac_at で -1.7 になった）"""
+    r = subprocess.run([ffmpeg(), '-hide_banner', '-encoders'], capture_output=True, text=True)
+    return 'aac_at' if any(len(l.split()) > 1 and l.split()[1] == 'aac_at' for l in r.stdout.splitlines()) else 'aac'
+
+
 def playwright_ready(): return (RENDER / 'node_modules' / 'playwright-core').exists()
 
 
