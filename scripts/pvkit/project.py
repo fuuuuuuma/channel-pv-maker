@@ -115,3 +115,13 @@ def probe_dur(path):
     r = subprocess.run([env.ffprobe(), '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', str(path)], capture_output=True, text=True)
     try: return float(r.stdout.strip())
     except ValueError: return 0.0
+
+
+def check_mix(P, total):
+    """書き出しの前に、音（mix.wav）が今の設計図から混ぜたものかを確かめる（mix が止まると前の版の音のまま書き出されていた）"""
+    f = P.build / 'mix.wav'
+    if not f.exists(): raise SystemExit('build/mix.wav がありません。先に pv.py mix')
+    d = probe_dur(f)
+    if abs(d - total) > .1: raise SystemExit(f'mix.wav が {d:.2f} 秒で、設計図の {total:.2f} 秒と合いません（前の版の音）。pv.py mix をやり直す')
+    tl = P.build / 'timeline.json'
+    if tl.exists() and f.stat().st_mtime < tl.stat().st_mtime: raise SystemExit('mix.wav が timeline.json より古い。pv.py mix をやり直す')

@@ -2,9 +2,13 @@
 <html lang="ja"><head><meta charset="utf-8">
 <!-- PV の場面（ブラウザで 1 コマずつ描いて書き出す）。中身は案件の build/scenes.json、長さは build/timeline.json の fx ブロック。
      場面の種類（type）: title / brand / stat / map / list / wall / quotes / xwall / chapter / brand_end
+                        card / photo / credits / countdown（文字カード・写真 1 枚＋年・エンドロール・カウントダウン）
+                        glow / leak / page / stack（金の光の粒と 1 語ずつの文字・光漏れ・エンドロールの 1 組・写真が重なっていく）
+     どの場面でも "back": {img, blur, op, sat, tint} で地を止めて敷ける（cam の寄りや場面の溶けに動かされない。同じ地の場面を切りでつなぐと地が止まって見える）
+     "overlay": true の場面は地が透明（映像の上に重ねる）。"hole": [x, y, 幅, 高さ] はその四角だけ地を抜く（映像の窓・額）。
      画像の道は案件フォルダからの相対（例 assets/brand/logo.png）。 -->
 <link rel="preconnect" href="https://fonts.gstatic.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;800;900&display=block" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;800;900&family=Noto+Serif+JP:wght@400;600;700&family=Cormorant+Garamond:wght@400;500;600;700&family=Pinyon+Script&display=block" rel="stylesheet">
 <style>
 @font-face{font-family:IN;src:url(fonts/Inter-500.ttf);font-weight:500}
 @font-face{font-family:IN;src:url(fonts/Inter-800.ttf);font-weight:800}
@@ -14,26 +18,34 @@
 @font-face{font-family:JPL;src:local('HiraginoSans-W6');font-weight:600}
 @font-face{font-family:JPL;src:local('HiraginoSans-W8');font-weight:800}
 @font-face{font-family:JPL;src:local('HiraginoSans-W9');font-weight:900}
-:root{--y:#ffd400;--o:#f07a12;--bg:#0b0b0c;--brand:#FFE73C;--dot:#f08a00;--JP:JPL,'Noto Sans JP',sans-serif}
-html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:var(--bg)}
+@font-face{font-family:JPM;src:local('HiraMinProN-W3');font-weight:300 500}
+@font-face{font-family:JPM;src:local('HiraMinProN-W6');font-weight:600 900}
+/* 見た目の変数。scenes.json の theme で替える（fg 文字の色・fg2 控えめの文字・line 線・land 地図の陸・shade 文字の下の暗さ・font: 'serif' で明朝とセリフの英字） */
+:root{--y:#ffd400;--o:#f07a12;--bg:#0b0b0c;--brand:#FFE73C;--dot:#f08a00;--fg:#fff;--fg2:rgba(255,255,255,.72);--line:rgba(255,255,255,.42);--land:rgba(255,255,255,.05);
+  --shade:rgba(0,0,0,.55);--mat:#fff;--WS:800;--SANS:JPL,'Noto Sans JP',sans-serif;--SERIF:JPM,'Noto Serif JP',serif;--JP:var(--SANS);--EN:IN;--ENS:'Cormorant Garamond',serif;--SC:'Pinyon Script',cursive}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:var(--bg);font-variant-numeric:lining-nums}
 #cam{position:absolute;inset:0;transform-origin:50% 50%}
+#cam *{font-variant-numeric:lining-nums tabular-nums !important}   /* セリフの英字の数字を下に突き出ない形に（font の一括指定で消えるので !important） */
 .s{position:absolute;will-change:transform,opacity,filter}
 .jp{font-family:var(--JP)}
 .grain{position:absolute;inset:0;opacity:.07;pointer-events:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence baseFrequency='.85' numOctaves='2'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>")}
 .vig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 72% 70% at 50% 48%,transparent 50%,rgba(0,0,0,.6))}
-.k{font:800 22px IN;letter-spacing:.5em;color:var(--y);white-space:nowrap}
+.k{font:800 22px var(--EN);letter-spacing:.5em;color:var(--y);white-space:nowrap}
 .card{border-radius:14px;overflow:hidden;box-shadow:0 30px 70px rgba(0,0,0,.55);background:#fff}
 .card img{display:block;width:100%}
 .photo{border-radius:10px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.6)}
 .photo img{display:block;width:100%;height:100%;object-fit:cover}
 </style></head>
-<body><div id="cam"></div><div class="vig"></div><div class="grain" id="grain"></div>
+<body><div id="back" style="position:absolute;inset:0"></div><div id="frame" style="position:absolute;inset:0"></div><div id="cam"></div><div id="bars" style="position:absolute;inset:0;pointer-events:none"></div><div class="vig"></div><div class="grain" id="grain"></div>
 <script>
 const cam = document.getElementById('cam');
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const P = (t, a, b) => clamp((t - a) / (b - a), 0, 1);
 const oc = x => 1 - Math.pow(1 - x, 3), o5 = x => 1 - Math.pow(1 - x, 5), ioc = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
 const U = p => !p ? '' : (/^(https?:|data:|\/)/.test(p) ? p : '/proj/' + p.split('/').map(encodeURIComponent).join('/'));
+const IMGD = {};   // 画像の縦横（読み込み時に控える）
+const X0 = 240, Y0 = 170;   // 場面の文字の左端と上端（会場で端が切れても残る中央 80% の内側・黒帯の内側）
+let THEME = {};
 function el(html, x, y, extra) { const d = document.createElement('div'); d.className = 's'; d.innerHTML = html; d.style.left = x + 'px'; d.style.top = y + 'px'; if (extra) d.style.cssText += extra; cam.appendChild(d); return d; }
 // 立ち上がり：ぼけから定まり、少し下から上がる。t1 から短く消える
 function rise(d, t, t0, dur, dy, t1, center) {
@@ -45,7 +57,7 @@ function rise(d, t, t0, dur, dy, t1, center) {
 }
 function bg(src, t, dur, op, blur) {   // ゆっくり寄る背景写真
   if (!src) return;
-  const d = el(`<div style="width:1920px;height:1080px;background:url('${U(src)}') center/cover"></div>`, 0, 0);
+  const d = el(`<img src="${U(src)}" style="display:block;width:1920px;height:1080px;object-fit:cover">`, 0, 0);   // <img> にする（撮る前に読み込みを待てる。CSS の背景だと最初の 1 コマが無地になった）
   d.style.opacity = op; d.style.filter = `blur(${blur}px) saturate(.85)`; d.style.transform = `scale(${1.08 + .06 * P(t, 0, dur)})`;
 }
 function bounce(p) { return p >= 1 ? 1 : 1 - Math.cos(p * Math.PI * 2.4) * Math.pow(1 - p, 2.2); }
@@ -71,6 +83,14 @@ function catchLine(parts, t, t0, cx, cy, size) {   // キャッチ：語ごと�
   const d = el(html, cx - w / 2, cy); const p = P(t, t0, t0 + .55);
   d.style.opacity = t < t0 ? 0 : Math.min(1, p * 3); d.style.transform = `scale(${.8 + .2 * bounce(p)}) rotate(${-2 + 2 * o5(p)}deg)`; d.style.transformOrigin = '50% 50%';
 }
+function back(c) {   // 止まった地：質感の紙・石目（pv.py texture で作る）やぼかした写真。場面が替わっても同じ指定なら描き直さない
+  const b = document.getElementById('back'), key = c.back ? JSON.stringify(c.back) : '';
+  if (b.dataset.k === key) return; b.dataset.k = key;
+  if (!c.back) { b.innerHTML = ''; return; }
+  const o = typeof c.back === 'string' ? { img: c.back } : c.back;
+  b.innerHTML = `<img src="${U(o.img)}" style="position:absolute;left:${o.blur ? -60 : 0}px;top:${o.blur ? -60 : 0}px;width:${1920 + (o.blur ? 120 : 0)}px;height:${1080 + (o.blur ? 120 : 0)}px;object-fit:cover;filter:blur(${o.blur || 0}px) saturate(${o.sat == null ? 1 : o.sat});opacity:${o.op == null ? 1 : o.op}">`
+    + (o.tint ? `<div style="position:absolute;inset:0;background:${o.tint}"></div>` : '');
+}
 const clear = () => { cam.innerHTML = ''; cam.style.transform = ''; cam.style.opacity = 1; cam.style.transformOrigin = '50% 50%'; };
 const fadeOut = (t, dur, len) => { cam.style.opacity = 1 - P(t, dur - (len || .35), dur); };
 const S = {};
@@ -82,14 +102,14 @@ S.title = function (t, dur, c) {
   const ln = el(`<div style="width:${300 * o5(P(t, .1, .8))}px;height:2px;background:var(--y)"></div>`, 960 - 150 * o5(P(t, .1, .8)), 330);
   if (c.kicker) { const k = el(`<div class="k" style="font-size:24px">${c.kicker}</div>`, 960, 380); rise(k, t, .3, .6, 12, null, true); }
   if (c.logo) logoImg(c.logo, t, .4, 960, 540, c.logo_w || 1000);
-  else { const h = el(`<div style="font:900 ${c.size || 150}px IN,var(--JP);color:#fff;letter-spacing:.04em;white-space:nowrap">${c.text || ''}</div>`, 960, 540); rise(h, t, .45, .7, 30, null, true); }
-  if (c.sub) { const s = el(`<div class="jp" style="font-weight:600;font-size:44px;color:#fff;letter-spacing:.18em;white-space:nowrap">${c.sub}</div>`, 960, 720); rise(s, t, 1.1, .7, 16, null, true); }
+  else { const h = el(`<div style="font:900 ${c.size || 150}px var(--EN),var(--JP);color:var(--fg);letter-spacing:.04em;white-space:nowrap">${c.text || ''}</div>`, 960, 540); rise(h, t, .45, .7, 30, null, true); }
+  if (c.sub) { const s = el(`<div class="jp" style="font-weight:600;font-size:44px;color:var(--fg);letter-spacing:.18em;white-space:nowrap">${c.sub}</div>`, 960, 720); rise(s, t, 1.1, .7, 16, null, true); }
   fadeOut(t, dur, .3);
 };
 // ===== brand：ブランド色の地にロゴの画像とキャッチ（題字） =====
 S.brand = function (t, dur, c) {
   clear(); brandBg(t);
-  if (c.kicker) { const k = el(`<div style="font:800 26px IN;letter-spacing:.5em;color:#111;white-space:nowrap">${c.kicker}</div>`, 960, 300); rise(k, t, .35, .5, 12, null, true); }
+  if (c.kicker) { const k = el(`<div style="font:800 26px var(--EN);letter-spacing:.5em;color:#111;white-space:nowrap">${c.kicker}</div>`, 960, 300); rise(k, t, .35, .5, 12, null, true); }
   if (c.logo) logoImg(c.logo, t, .05, 960, 500, c.logo_w || 1180);
   catchLine(c.catch, t, .8, 960, 690, c.catch_size || 74);
   cam.style.transform = `scale(${1 + .03 * P(t, 0, dur)})`;
@@ -105,32 +125,33 @@ S.brand_end = function (t, dur, c) {
   }
   if (c.logo) logoImg(c.logo, t, .3, cx, 400, c.logo_w || 1150);
   catchLine(c.catch, t, 1.0, cx, 560, c.catch_size || 70);
-  const pill = (a, b) => `<span style="display:inline-flex;align-items:center;gap:14px;background:#111;color:#fff;border-radius:999px;padding:14px 30px"><span style="font:800 24px IN;color:var(--brand);letter-spacing:.06em">${a}</span><span class="jp" style="font-weight:800;font-size:28px;letter-spacing:.06em">${b}</span></span>`;
+  const pill = (a, b) => `<span style="display:inline-flex;align-items:center;gap:14px;background:#111;color:#fff;border-radius:999px;padding:14px 30px"><span style="font:800 24px var(--EN);color:var(--brand);letter-spacing:.06em">${a}</span><span class="jp" style="font-weight:800;font-size:28px;letter-spacing:.06em">${b}</span></span>`;
   if (c.links) { const h = el(`<div style="display:flex;gap:26px;white-space:nowrap">${c.links.map(l => pill(l[0], l[1])).join('')}</div>`, cx, 800); rise(h, t, 1.6, .5, 14, null, true); }
   cam.style.opacity = 1 - P(t, dur - 1.0, dur);
 };
 // ===== stat：大きな数字（数え上がる）＋一言＋添える画像 =====
 S.stat = function (t, dur, c) {
   clear(); bg(c.bg, t, dur, .28, 14);
-  const k = el(`<div class="k">${c.kicker || ''}</div>`, 140, 300); rise(k, t, .1, .6, 16);
+  const k = el(`<div class="k">${c.kicker || ''}</div>`, X0, 300); rise(k, t, .1, .6, 16);
   const n = Math.round((c.value || 0) * o5(P(t, .3, 1.7)));
-  const b = el(`<div style="white-space:nowrap"><span style="font:900 300px/1 IN;color:#fff;letter-spacing:-.02em">${n.toLocaleString()}</span><span class="jp" style="font-weight:800;font-size:110px;color:#fff;margin-left:22px">${c.unit || ''}</span></div>`, 130, 350);
+  const b = el(`<div style="white-space:nowrap"><span style="font:var(--WS) 300px/1 var(--EN);color:var(--fg);letter-spacing:-.02em">${n.toLocaleString()}</span><span class="jp" style="font-weight:var(--WS);font-size:110px;color:var(--fg);margin-left:22px">${c.unit || ''}</span></div>`, X0 - 10, 350);
   rise(b, t, .25, .6, 30);
-  el(`<div style="width:${520 * o5(P(t, 1.5, 2.1))}px;height:6px;background:var(--y)"></div>`, 140, 700);
-  if (c.sub) { const s = el(`<div class="jp" style="font-weight:600;font-size:40px;color:#fff;letter-spacing:.08em;white-space:nowrap">${c.sub.replace(/<b>/g, '<span style="color:var(--y)">').replace(/<\/b>/g, '</span>')}</div>`, 140, 740); rise(s, t, 1.55, .6, 16); }
-  if (c.card) { const x = el(`<div class="card" style="width:520px"><img src="${U(c.card)}"></div>`, 1240, 170);
+  el(`<div style="width:${520 * o5(P(t, 1.5, 2.1))}px;height:6px;background:var(--y)"></div>`, X0, 700);
+  if (c.sub) { const s = el(`<div class="jp" style="font-weight:600;font-size:40px;color:var(--fg);letter-spacing:.08em;white-space:nowrap">${c.sub.replace(/<b>/g, '<span style="color:var(--y)">').replace(/<\/b>/g, '</span>')}</div>`, X0, 740); rise(s, t, 1.55, .6, 16); }
+  if (c.card) { const x = el(`<div class="card" style="width:480px"><img src="${U(c.card)}"></div>`, 1200, 200);
     const q = o5(P(t, 1.0, 1.7)); x.style.opacity = q; x.style.transform = `translate(${(1 - q) * 160}px,0) rotate(2.5deg)`; x.style.filter = `blur(${(1 - q) * 8}px)`; }
   fadeOut(t, dur);
 };
 // ===== map：地図に点と写真のカード（build/map.json は pv.py map で作る） =====
 S.map = function (t, dur, c) {
   clear(); const J = MAP; if (!J) return;
-  const sc = c.scale || .92, ox = (c.cx || 760) - J.w * sc / 2, oy = 540 - J.h * sc / 2;
+  const sc = c.scale || .92, fq = c.focus && J.places[c.focus];   // focus: 地点の名前を (cx, cy) に置く（近い地点どうしを大きく見せる）
+  const ox = fq ? (c.cx || 960) - fq[0] * sc : (c.cx || 760) - J.w * sc / 2, oy = fq ? (c.cy || 540) - fq[1] * sc : 540 - J.h * sc / 2;
   cam.style.transformOrigin = '880px 520px'; cam.style.transform = `scale(${1.04 + .05 * ioc(P(t, 0, dur))})`;
-  const m = el(`<svg width="${J.w * sc}" height="${J.h * sc}" viewBox="0 0 ${J.w} ${J.h}" style="overflow:visible"><path d="${J.paths.join(' ')}" fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.42)" stroke-width="1.2" stroke-linejoin="round"/></svg>`, ox, oy);
+  const m = el(`<svg width="${J.w * sc}" height="${J.h * sc}" viewBox="0 0 ${J.w} ${J.h}" style="overflow:visible"><path d="${J.paths.join(' ')}" fill="var(--land)" stroke="var(--line)" stroke-width="1.2" stroke-linejoin="round"/></svg>`, ox, oy);
   m.style.opacity = oc(P(t, 0, .6));
-  if (c.kicker) { const k = el(`<div class="k">${c.kicker}</div>`, 120, 96); rise(k, t, .2, .6, 14); }
-  if (c.title) { const h = el(`<div class="jp" style="font-weight:800;font-size:64px;color:#fff;letter-spacing:.06em;white-space:nowrap">${c.title}</div>`, 120, 132); rise(h, t, .3, .6, 18); }
+  if (c.kicker) { const k = el(`<div class="k">${c.kicker}</div>`, X0, Y0); rise(k, t, .2, .6, 14); }
+  if (c.title) { const h = el(`<div class="jp" style="font-weight:var(--WS);font-size:64px;color:var(--fg);letter-spacing:.06em;white-space:nowrap">${c.title}</div>`, X0, Y0 + 36); rise(h, t, .3, .6, 18); }
   const items = (c.places || []).map(pl => { const q = J.places[pl.name] || [0, 0]; return [pl, ox + q[0] * sc + (pl.dx || 0), oy + q[1] * sc + (pl.dy || 0)]; });
   const lines = [];
   items.forEach(([pl, x, y]) => { if (t > pl.at + .1) { const q = o5(P(t, pl.at + .1, pl.at + .45)); const [cx, cy] = pl.card;
@@ -143,8 +164,8 @@ S.map = function (t, dur, c) {
     dot.style.opacity = t < pl.at ? 0 : 1; dot.style.transform = `scale(${o5(p)})`;
     const [cx, cy] = pl.card;
     const card = el(`${pl.img ? `<div class="photo" style="width:300px;height:190px"><img src="${U(pl.img)}"></div>` : ''}
-      <div style="margin-top:14px;font:800 15px IN;letter-spacing:.32em;color:var(--y)">${pl.en || ''}</div>
-      <div style="margin-top:6px;display:flex;align-items:baseline;gap:16px"><span class="jp" style="font-weight:800;font-size:34px;color:#fff;letter-spacing:.06em">${pl.label || pl.name}</span><span style="font:800 18px IN;color:rgba(255,255,255,.6);letter-spacing:.2em">${pl.sub || ''}</span></div>`, cx - 150, cy - 95);
+      <div style="margin-top:14px;font:800 15px var(--EN);letter-spacing:.32em;color:var(--y)">${pl.en || ''}</div>
+      <div style="margin-top:6px;display:flex;align-items:baseline;gap:16px"><span class="jp" style="font-weight:800;font-size:34px;color:var(--fg);letter-spacing:.06em">${pl.label || pl.name}</span><span style="font:800 18px var(--EN);color:var(--fg2);letter-spacing:.2em">${pl.sub || ''}</span></div>`, cx - 150, cy - 95);
     rise(card, t, pl.at + .25, .6, 22);
   });
   fadeOut(t, dur);
@@ -161,21 +182,22 @@ S.list = function (t, dur, c) {
     const y = 820 - fromEnd * 92 + (1 - o5(P(t, t0, t0 + .45))) * 60;
     if (y < 190) return;
     const fs = 58 + 18 * Math.max(0, 1 - fromEnd);
-    const d = el(`<div style="display:flex;align-items:baseline;gap:26px;white-space:nowrap"><span style="font:800 22px IN;color:var(--y);letter-spacing:.1em">${String(i + 1).padStart(2, '0')}</span><span class="jp" style="font-weight:800;font-size:${fs.toFixed(1)}px;color:#fff;letter-spacing:.05em">${s}</span></div>`, 140, y);
+    const d = el(`<div style="display:flex;align-items:baseline;gap:26px;white-space:nowrap"><span style="font:800 22px var(--EN);color:var(--y);letter-spacing:.1em">${String(i + 1).padStart(2, '0')}</span><span class="jp" style="font-weight:800;font-size:${fs.toFixed(1)}px;color:var(--fg);letter-spacing:.05em">${s}</span></div>`, 140, y);
     d.style.opacity = (t < t0 ? 0 : o5(P(t, t0, t0 + .35))) * Math.max(.18, 1 - fromEnd * .17) * (y < 260 ? (y - 190) / 70 : 1); d.style.filter = `blur(${(1 - o5(P(t, t0, t0 + .35))) * 8}px)`;
   });
   const TH = c.thumbs || [];
   TH.forEach((src, i) => { const t0 = .2 + i * 1.15; if (t < t0) return;
     const d = el(`<div class="card" style="width:620px"><img src="${U(src)}"></div>`, 1170 + (i % 2) * 36, 230 + i * 40);
     const q = o5(P(t, t0, t0 + .6)); d.style.opacity = q; d.style.transform = `translateX(${(1 - q) * 120}px) rotate(${(i % 2 ? 1.5 : -1.5)}deg)`; d.style.filter = `blur(${(1 - q) * 6}px) brightness(${1 - .1 * (TH.length - 1 - i)})`; });
-  if (c.more) { const e = el(`<div class="jp" style="font-weight:600;font-size:34px;color:rgba(255,255,255,.75);letter-spacing:.2em;white-space:nowrap">${c.more}</div>`, 140, 930); rise(e, t, tt + .1, .5, 12); }
+  if (c.more) { const e = el(`<div class="jp" style="font-weight:600;font-size:34px;color:var(--fg2);letter-spacing:.2em;white-space:nowrap">${c.more}</div>`, 140, 930); rise(e, t, tt + .1, .5, 12); }
   fadeOut(t, dur);
 };
 // ===== wall：画像（バナー・サムネ）が 3 段で横に流れる =====
 S.wall = function (t, dur, c) {
   clear(); bg(c.bg, t, dur, .10, 26);
-  if (c.kicker) { const k = el(`<div class="k">${c.kicker}</div>`, 120, 168); rise(k, t, .1, .6, 14); }
-  if (c.title) { const h = el(`<div class="jp" style="font-weight:800;font-size:56px;color:#fff;letter-spacing:.06em;white-space:nowrap">${c.title}</div>`, 120, 198); rise(h, t, .2, .6, 18); }
+  if (c.kicker) { const k = el(`<div class="k">${c.kicker}</div>`, X0, Y0); rise(k, t, .1, .6, 14); }
+  if (c.title) { const h = el(`<div class="jp" style="font-weight:var(--WS);font-size:56px;color:var(--fg);letter-spacing:.06em;white-space:nowrap">${c.title}</div>`, X0, Y0 + 30); rise(h, t, .2, .6, 18); }
+  const strip = el('', 192, 0, 'width:1536px;height:1080px;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 7%,#000 93%,transparent 100%)');
   const rows = [385, 600, 815], W = 320, H = W * 9 / 16, G = 26;
   (c.images || []).forEach((e, i) => {
     const r = i % 3, j = Math.floor(i / 3), sp = [62, 88, 54][r];
@@ -183,10 +205,9 @@ S.wall = function (t, dur, c) {
     if (x > 1960 || x < -W - 40) return;
     const src = typeof e === 'string' ? e : e.src, en = typeof e === 'string' ? '' : (e.en || '');
     const d = el(`<div class="card" style="width:${W}px;height:${H}px;background:#111"><img src="${U(src)}" style="width:100%;height:100%;object-fit:cover"></div>
-      <div style="margin-top:8px;font:800 13px IN;letter-spacing:.28em;color:var(--y);white-space:nowrap">${en}</div>`, x, rows[r] - H / 2);
-    rise(d, t, .3 + j * .45 + r * .15, .5, 26);
+      <div style="margin-top:8px;font:800 13px var(--EN);letter-spacing:.28em;color:var(--y);white-space:nowrap">${en}</div>`, x - 192, rows[r] - H / 2);
+    strip.appendChild(d); rise(d, t, .3 + j * .45 + r * .15, .5, 26);
   });
-  if (LETTERBOX) { el(`<div style="width:1920px;height:138px;background:#000"></div>`, 0, 0); el(`<div style="width:1920px;height:139px;background:#000"></div>`, 0, 941); }
   fadeOut(t, dur);
 };
 // ===== quotes：「こんな声が届いています」→ 声を 1 つずつ文字で =====
@@ -194,18 +215,18 @@ S.quotes = function (t, dur, c) {
   clear();
   const Q = c.items || [], intro = c.intro ? 1.6 : 0, each = (dur - intro) / Math.max(1, Q.length);
   const i = Math.floor((t - intro) / each), lt = t - intro - i * each, bgs = c.bgs || [];
-  if (bgs.length) bg(bgs[Math.max(0, i) % bgs.length], t, dur, .12, 22);
+  if (bgs.length) bg(bgs[Math.max(0, i) % bgs.length], t, dur, c.bg_op == null ? .12 : c.bg_op, c.bg_blur == null ? 22 : c.bg_blur);
   if (t < intro + .2) {
     const k = el(`<div class="k" style="font-size:26px">${c.kicker || ''}</div>`, 960, 470); rise(k, t, .1, .6, 14, intro - .3, true);
-    const h = el(`<div class="jp" style="font-weight:800;font-size:64px;color:#fff;letter-spacing:.1em;white-space:nowrap">${c.intro}</div>`, 960, 560); rise(h, t, .25, .6, 18, intro - .3, true);
+    const h = el(`<div class="jp" style="font-weight:800;font-size:64px;color:var(--fg);letter-spacing:.1em;white-space:nowrap">${c.intro}</div>`, 960, 560); rise(h, t, .25, .6, 18, intro - .3, true);
     return;
   }
   const [q, who, id] = Q[Math.min(i, Q.length - 1)] || ['', '', ''];
-  const qm = el(`<div style="font:900 120px/1 IN;color:var(--y)">“</div>`, 200, 300); rise(qm, lt, 0, .45, 12, each - .3);
-  const body = el(`<div class="jp" style="font-weight:800;font-size:76px;line-height:1.42;color:#fff;letter-spacing:.04em;white-space:pre">${q}</div>`, 200, 400); rise(body, lt, .06, .55, 22, each - .3);
-  const w = el(`<div style="display:flex;align-items:center;gap:18px;white-space:nowrap"><span style="width:40px;height:2px;background:var(--y)"></span><span class="jp" style="font-weight:600;font-size:30px;color:rgba(255,255,255,.85)">${who || ''}</span><span style="font:500 24px IN;color:rgba(255,255,255,.45)">${id || ''}</span></div>`, 204, 400 + 76 * 1.42 * (q.split('\n').length) + 40);
+  const qm = el(`<div style="font:900 120px/1 var(--EN);color:var(--y)">“</div>`, X0, 300); rise(qm, lt, 0, .45, 12, each - .3);
+  const body = el(`<div class="jp" style="font-weight:800;font-size:76px;line-height:1.42;color:var(--fg);letter-spacing:.04em;white-space:pre">${q}</div>`, X0, 400); rise(body, lt, .06, .55, 22, each - .3);
+  const w = el(`<div style="display:flex;align-items:center;gap:18px;white-space:nowrap"><span style="width:40px;height:2px;background:var(--y)"></span><span class="jp" style="font-weight:600;font-size:30px;color:var(--fg2)">${who || ''}</span><span style="font:500 24px var(--EN);color:var(--fg2)">${id || ''}</span></div>`, X0 + 4, 400 + 76 * 1.42 * (q.split('\n').length) + 40);
   rise(w, lt, .25, .5, 10, each - .3);
-  el(`<div style="font:800 20px IN;color:rgba(255,255,255,.4);letter-spacing:.3em">${String(Math.min(i, Q.length - 1) + 1).padStart(2, '0')} / ${String(Q.length).padStart(2, '0')}</div>`, 1640, 960);
+  el(`<div style="font:800 20px var(--EN);color:var(--fg2);letter-spacing:.3em">${String(Math.min(i, Q.length - 1) + 1).padStart(2, '0')} / ${String(Q.length).padStart(2, '0')}</div>`, 1560, 920);
   fadeOut(t, dur, .3);
 };
 // ===== xwall：X の投稿の画像を斜めの壁にだんだん速く貼る → 中央に見出し =====
@@ -227,40 +248,288 @@ S.xwall = function (t, dur, c) {
   const at = c.title_at == null ? 3.0 : c.title_at;
   el(`<div style="width:1920px;height:1080px;background:radial-gradient(ellipse 46% 42% at 50% 50%,rgba(11,11,12,${.88 * P(t, at - .2, at + .6)}),rgba(11,11,12,${.2 * P(t, at - .2, at + .6)}))"></div>`, 0, 0);
   if (c.kicker) { const k = el(`<div class="k" style="font-size:24px">${c.kicker}</div>`, 960, 455); rise(k, t, at, .6, 14, dur - .6, true); }
-  if (c.title) { const h = el(`<div class="jp" style="font-weight:900;font-size:120px;color:#fff;letter-spacing:.06em;white-space:nowrap">${c.title}</div>`, 960, 560); rise(h, t, at + .15, .7, 20, dur - .6, true); }
+  if (c.title) { const h = el(`<div class="jp" style="font-weight:900;font-size:120px;color:var(--fg);letter-spacing:.06em;white-space:nowrap">${c.title}</div>`, 960, 560); rise(h, t, at + .15, .7, 20, dur - .6, true); }
   fadeOut(t, dur);
 };
 // ===== chapter：章の区切り（小見出し＋見出し） =====
 S.chapter = function (t, dur, c) {
   clear(); bg(c.bg, t, dur, .18, 16);
   const k = el(`<div class="k" style="font-size:24px">${c.kicker || ''}</div>`, 960, 470); rise(k, t, .1, .6, 14, dur - .5, true);
-  const h = el(`<div class="jp" style="font-weight:900;font-size:${c.size || 96}px;color:#fff;letter-spacing:.08em;white-space:nowrap">${c.title || ''}</div>`, 960, 570); rise(h, t, .25, .7, 20, dur - .5, true);
+  const h = el(`<div class="jp" style="font-weight:900;font-size:${c.size || 96}px;color:var(--fg);letter-spacing:.08em;white-space:nowrap">${c.title || ''}</div>`, 960, 570); rise(h, t, .25, .7, 20, dur - .5, true);
   el(`<div style="width:${260 * o5(P(t, .5, 1.1))}px;height:3px;background:var(--y)"></div>`, 960 - 130 * o5(P(t, .5, 1.1)), 660);
   fadeOut(t, dur);
 };
+
+// ===== 結婚式・告知向けの場面（card / photo / credits / countdown） =====
+const SZ = { xs: 30, s: 42, m: 60, l: 88, xl: 128, xxl: 176 };
+const hl = s => String(s || '').replace(/<b>/g, '<span style="color:var(--y)">').replace(/<\/b>/g, '</span>');
+function appear(d, t, t0, dur, dy, t1) {   // 並びの中の要素を、ぼけから定めて少し上げる
+  dur = dur || .7; dy = dy == null ? 18 : dy;
+  const p = o5(P(t, t0, t0 + dur)); let op = t < t0 ? 0 : p;
+  if (t1 != null && t > t1) op *= 1 - oc(P(t, t1, t1 + .4));
+  d.style.opacity = op; d.style.filter = `blur(${(1 - p) * 8}px)`; d.style.transform = `translateY(${(1 - p) * dy}px)`;
+}
+// 1 行の文字：[文字, 大きさ('xs'〜'xxl' か px), {en: セリフの英字の大文字, script: 筆記体, w: 太さ, ls: 字間, color, at: 出る秒}]
+function lineHtml(ln, col, sh) {
+  const [txt, size, o] = Array.isArray(ln) ? [ln[0], ln[1], ln[2] || {}] : [ln, 'm', {}];
+  const px = typeof size === 'number' ? size : (SZ[size] || 60);
+  let st;
+  if (o.script) st = `font:400 ${px * 1.3}px/1.2 var(--SC);letter-spacing:0;`;
+  else if (o.en) st = `font:${o.w || 500} ${px}px/1.15 var(--ENS);letter-spacing:${o.ls == null ? .2 : o.ls}em;text-transform:${o.upper === false ? 'none' : 'uppercase'};`;
+  else st = `font-family:var(--JP);font-weight:${o.w || 600};font-size:${px}px;line-height:1.35;letter-spacing:${o.ls == null ? .12 : o.ls}em;`;
+  return [`<div style="${st}color:${o.color || col};${sh}white-space:pre">${hl(txt)}</div>`, o];
+}
+function stack(box, lines, t, at, step, col, sh) {   // 行を順に立ち上げる（出る秒を返す）
+  (lines || []).forEach((ln, i) => {
+    const [h, o] = lineHtml(ln, col, sh); const w = document.createElement('div'); w.innerHTML = h; const d = w.firstElementChild;
+    box.appendChild(d); appear(d, t, o.at == null ? at + i * step : o.at, .75, o.dy == null ? 18 : o.dy);
+  });
+}
+// ===== card：文字カード（予告の煽り・お願い・題名・映像の上の一言）。行ごとに大きさを変えてそろえる =====
+// lines: 上の lineHtml の並び  pos: 'center'|'lower'|'left'|'right'|[x, y]  kicker: 小見出し  foot: 画面下の小さな注記
+// bg: 写真を暗く敷く  dim: 映像の上で文字の下を暗く（0〜1）  fg: 文字の色  shadow: 文字に影  push: ゆっくり寄る量（.025）
+S.card = function (t, dur, c) {
+  clear(); if (c.bg) bg(c.bg, t, dur, c.bg_op == null ? .2 : c.bg_op, c.bg_blur == null ? 16 : c.bg_blur);
+  const pos = c.pos || 'center';
+  const [x, y, align, tf] = Array.isArray(pos)          // [x, y, 'left'|'right']：x を左端／右端にそろえる（寄りの顔の反対の隅など）
+    ? [pos[0], pos[1], pos[2] === 'left' ? 'flex-start' : pos[2] === 'right' ? 'flex-end' : 'center',
+       pos[2] === 'left' ? 'translate(0,-50%)' : pos[2] === 'right' ? 'translate(-100%,-50%)' : 'translate(-50%,-50%)']
+    : pos === 'lower' ? [960, 905, 'center', 'translate(-50%,-100%)'] : pos === 'left' ? [230, 540, 'flex-start', 'translate(0,-50%)']
+    : pos === 'right' ? [1690, 540, 'flex-end', 'translate(-100%,-50%)'] : [960, 540, 'center', 'translate(-50%,-50%)'];
+  if (c.dim) {
+    const g = pos === 'lower' ? 'linear-gradient(0deg,var(--shade) 0%,transparent 50%)' : `radial-gradient(ellipse 58% 52% at ${x / 19.2}% ${y / 10.8}%,var(--shade),transparent 74%)`;
+    const d = el(`<div style="width:1920px;height:1080px;background:${g}"></div>`, 0, 0); d.style.opacity = c.dim * o5(P(t, 0, .6)) * (1 - P(t, dur - .5, dur));
+  }
+  if (c.reveal) {                                        // reveal: [始, 終] 文字の形に抜いた映像（ai の matte）を、文字の外まで開いて全面にする
+    const rv = el('<div style="width:1920px;height:1080px;background:#fff"></div>', 0, 0); rv.style.opacity = ioc(P(t, c.reveal[0], c.reveal[1]));
+  }
+  const ta = align === 'center' ? 'center' : align === 'flex-end' ? 'right' : 'left';
+  const box = el('', x, y, `width:max-content;display:flex;flex-direction:column;align-items:${align};text-align:${ta};gap:${c.gap == null ? 16 : c.gap}px`);
+  box.style.transform = tf;
+  const at = c.start == null ? .2 : c.start;
+  if (c.kicker) { const w = document.createElement('div'); w.innerHTML = `<div class="k" style="font-size:${c.kicker_size || 22}px;margin-bottom:6px">${c.kicker}</div>`; const d = w.firstElementChild; box.appendChild(d); appear(d, t, at, .7, 10); }
+  stack(box, c.lines, t, at + (c.kicker ? .2 : 0), c.step || .35, c.fg || 'var(--fg)', c.shadow ? 'text-shadow:0 2px 18px rgba(0,0,0,.6),0 0 3px rgba(0,0,0,.35);' : '');
+  if (c.foot) {   // foot_x：左端をそろえる（foot_w があれば x〜x+幅 の中で右にそろえる）。\n で改行。shadow なら注記にも影
+    const fw = c.foot_w ? `width:${c.foot_w}px;text-align:right;` : '', fs = c.shadow ? 'text-shadow:0 1px 10px rgba(0,0,0,.75),0 0 2px rgba(0,0,0,.5);' : '';
+    const f = el(`<div class="jp" style="font-weight:400;font-size:22px;line-height:1.55;color:${c.foot_fg || 'var(--fg2)'};letter-spacing:.12em;white-space:pre;${fw}${fs}">${c.foot}</div>`, c.foot_x == null ? 960 : c.foot_x, c.foot_y || 990);
+    rise(f, t, c.foot_at || .8, .6, 8, null, c.foot_x == null);
+  }
+  cam.style.transform = `scale(${1 + (c.push == null ? .025 : c.push) * P(t, 0, dur)})`;
+  fadeOut(t, dur, c.out == null ? .5 : c.out);
+};
+// ===== photo：写真 1 枚（白い縁のプリント）＋西暦（数え上げるか巻き戻す）＋年齢＋一言 =====
+// img, year, from（数え始めの年。省くと数えない）, age, text（\n で改行）, label（英字の小見出し）, side: 'left'|'right'（写真の側）, tilt（度）, focus（寄る中心）
+// push: 全体がゆっくり寄る量（.06）  drift: 写真が横に流れる px（文字は半分の速さで逆へ。止まって見えないように）  fade_in: 写真が定まるまでの秒  out: 消える秒  aged: 昔の写真らしく
+S.photo = function (t, dur, c) {
+  clear();
+  if (c.bg !== false && !THEME.light && !c.back) bg(c.img, t, dur, .2, 26);
+  const mono = c.mono ? 1 - ioc(P(t, c.mono[0], c.mono[1])) : 0;   // mono: [始, 終] の秒で白黒からカラーへ（過去から今へ）
+  const [iw, ih] = IMGD[c.img] || [4, 3], ar = iw / ih;
+  let w = c.max_w || 720, h = w / ar; if (h > (c.max_h || 660)) { h = c.max_h || 660; w = h * ar; }
+  const side = c.side || 'left', px = side === 'left' ? 640 : 1280, mat = c.mat == null ? 16 : c.mat;
+  const tilt = c.tilt == null ? (side === 'left' ? -1.4 : 1.4) : c.tilt, p = o5(P(t, .05, c.fade_in || 1.0));
+  const dx = (c.drift || 0) * (P(t, 0, dur) - .5);
+  const ag = c.aged === true ? 1 : (c.aged || 0);                    // aged: 昔の写真らしく（少し黄ばみ・彩度と黒を落とす）。0〜1
+  const ph = el(`<div style="width:${w}px;height:${h}px;padding:${mat}px;background:var(--mat);box-shadow:0 28px 60px rgba(0,0,0,${THEME.light ? .16 : .5})">
+      <div style="width:100%;height:100%;overflow:hidden"><img src="${U(c.img)}" style="display:block;width:100%;height:100%;object-fit:cover;filter:grayscale(${mono}) sepia(${mono * .18 + ag * .22}) saturate(${1 - ag * .22}) contrast(${1 + mono * .06 - ag * .06}) brightness(${1 + ag * .03});transform:scale(${1.02 + .05 * P(t, 0, dur)});transform-origin:${c.focus || '50% 40%'}"></div></div>`, px, c.y || 540);
+  ph.style.opacity = p; ph.style.filter = `blur(${(1 - p) * 8}px)`;
+  ph.style.transform = `translate(-50%,-50%) translate(${dx}px,${(1 - p) * 30}px) rotate(${tilt * (1 + (1 - p) * 1.5)}deg)`;
+  const tx = side === 'left' ? px + w / 2 + mat + 110 : 230;
+  const col = el('', tx, 540, 'width:max-content;display:flex;flex-direction:column;align-items:flex-start;gap:14px'); col.style.transform = `translate(${-dx * .5}px,-50%)`;
+  const add = (hh, t0, dy) => { const q = document.createElement('div'); q.innerHTML = hh; const d = q.firstElementChild; col.appendChild(d); appear(d, t, t0, .7, dy); };
+  if (c.label) add(`<div class="k" style="font-size:20px">${c.label}</div>`, .35, 10);
+  if (c.age_big != null) {                                   // 大きな年齢（00 歳）＋小さな西暦の行
+    add(`<div style="display:flex;align-items:baseline;gap:16px"><span style="font:500 ${c.age_size || 280}px/0.82 var(--ENS);color:var(--fg)">${c.age_big}</span><span style="font-family:var(--JP);font-weight:600;font-size:${c.unit_size || 58}px;color:var(--fg);letter-spacing:.08em">${c.age_unit || '歳'}</span></div>`, .25, 22);
+    if (c.year != null) add(`<div style="display:flex;align-items:center;gap:18px"><span style="display:inline-block;width:${70 * o5(P(t, .9, 1.5))}px;height:1px;background:var(--y)"></span><span style="font:500 40px var(--ENS);color:var(--y);letter-spacing:.3em">${c.year}</span></div>`, .8, 10);
+  } else if (c.year != null) {
+    const yv = c.from == null ? c.year : Math.round(c.from + (c.year - c.from) * o5(P(t, .3, 1.9)));
+    add(`<div style="font:500 ${c.year_size || 200}px/0.95 var(--ENS);color:var(--fg);letter-spacing:.02em">${yv}</div>`, .25, 22);
+  }
+  if (c.age && c.age_big == null) add(`<div style="display:flex;align-items:center;gap:18px"><span style="display:inline-block;width:${70 * o5(P(t, .9, 1.5))}px;height:1px;background:var(--y)"></span><span style="font-family:var(--JP);font-weight:600;font-size:40px;color:var(--y);letter-spacing:.14em">${c.age}</span></div>`, .8, 10);
+  if (c.text) add(`<div style="font-family:var(--JP);font-weight:${c.w || 600};font-size:${c.text_size || 48}px;line-height:1.6;color:var(--fg);letter-spacing:.1em;white-space:pre">${hl(c.text)}</div>`, 1.25, 16);
+  if (c.push) cam.style.transform = `scale(${1 + c.push * P(t, 0, dur)})`;
+  fadeOut(t, dur, c.out == null ? .5 : c.out);
+};
+// ===== glow：暗い地に金の光の粒（ぼけて漂う）と横切る光。words を 1 語ずつ出す（写真を出さない予告の前奏・題字の後ろ） =====
+// words: [[文字, 出る秒, 消える秒, 大きさ, {en, script, ls, y}]]  n: 粒の数  seed  streak_at: 光が横切る秒（false で無し）  overlay で映像の上に粒だけ
+S.glow = function (t, dur, c) {
+  clear(); let s = c.seed || 7; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  const fi = c.fade_in == null ? 1.2 : c.fade_in, fin = (fi > 0 ? P(t, 0, fi) : 1) * (1 - P(t, dur - (c.out == null ? .6 : c.out), dur));   // fade_in 0 で 1 コマ目から（幕に使う。.01 でも 1 コマ目は透ける）
+  if (c.shade) el('<div style="width:1920px;height:1080px;background:#000"></div>', 0, 0).style.opacity = c.shade * fin;   // shade: 下の映像を暗く（overlay のとき）
+  for (let i = 0; i < (c.n || 80); i++) {
+    const x0 = rnd() * 1920, y0 = rnd() * 1080, r = 3 + Math.pow(rnd(), 3) * 54, sp = 10 + rnd() * 34, ph = rnd() * 6.28, dp = rnd(), dir = rnd() > .5 ? 1 : -1;
+    const x = x0 + Math.sin(t * .3 + ph) * 46 + dir * t * sp * .35, y = (((y0 - t * sp) % 1200) + 1200) % 1200 - 60;
+    const a = (.12 + dp * .6) * (.65 + .35 * Math.sin(t * 1.4 + ph)) * fin;
+    el(`<div style="width:${r * 2}px;height:${r * 2}px;border-radius:50%;background:radial-gradient(circle,rgba(255,226,170,${a}) 0%,rgba(216,178,110,${a * .55}) 42%,transparent 70%);filter:blur(${r > 18 ? r * .35 : r * .12}px)"></div>`, x - r, y - r);
+  }
+  if (c.streak_at !== false) {
+    const a0 = c.streak_at == null ? .6 : c.streak_at, p = P(t, a0, a0 + 2.8);
+    const d = el(`<div style="width:1100px;height:2px;background:linear-gradient(90deg,transparent,rgba(255,234,190,.95),transparent);box-shadow:0 0 34px 10px rgba(255,206,140,.32)"></div>`, -900 + p * 3200, c.streak_y || 560);
+    d.style.opacity = Math.sin(p * Math.PI) * fin;
+  }
+  (c.words || []).forEach(w => {
+    const [txt, a0, a1, size, o] = w; const [h] = lineHtml([txt, size || 'xl', Object.assign({ en: 1 }, o || {})], 'var(--fg)', 'text-shadow:0 0 34px rgba(255,214,150,.5);');
+    const d = el(h, 960, (o && o.y) || c.cy || 540); rise(d, t, a0, 1.0, 12, a1, true);
+  });
+};
+// ===== leak：フィルムの光漏れ（章の変わり目に 1〜1.6 秒）。"overlay": true と "blend": "screen" で映像や場面の上に明るく重ねる =====
+S.leak = function (t, dur, c) {
+  clear(); const p = P(t, 0, dur), a = Math.pow(Math.sin(p * Math.PI), 1.3) * (c.strength || 1), dir = c.dir || 1;
+  (c.colors || ['255,168,92', '255,118,74', '255,214,150']).forEach((col, i) => {
+    const r = 760 - i * 140, x = (dir > 0 ? -500 + p * 2900 : 2400 - p * 2900) + i * 200 * dir, y = 260 + i * 260;
+    el(`<div style="width:${r * 2}px;height:${r * 2}px;border-radius:50%;background:radial-gradient(circle,rgba(${col},${.8 * a}) 0%,rgba(${col},${.36 * a}) 36%,transparent 70%)"></div>`, x - r, y - r);
+  });
+  el(`<div style="width:1920px;height:1080px;background:rgba(255,232,200,${.16 * a})"></div>`, 0, 0);
+};
+// ===== page：エンドロールの 1 組。地は back で止めたまま、片側に写真（1〜4 枚）、反対側に見出し・名前・一言 =====
+// imgs, side: 'left'|'right'（写真の側）, head: 英字の見出し, sub: 日本語の見出し, names: [...], note: 一言, name_size, mono: 白黒からカラーへ
+// focus: 写真ごとの切り取る位置 ['70% 35%', …]（横長の写真を縦長の枠に入れると中央だけが残り、顔が外れる）
+S.page = function (t, dur, c) {
+  clear();
+  const imgs = c.imgs || [], n = Math.min(4, imgs.length), side = c.side || 'left', ox = side === 'left' ? 230 : 1010;
+  const L = { 1: [[0, 0, 680, 680]], 2: [[0, 20, 440, 520], [300, 260, 380, 440]], 3: [[0, 0, 680, 400], [0, 430, 330, 250], [350, 430, 330, 250]],
+              4: [[0, 0, 330, 330], [350, 0, 330, 330], [0, 350, 330, 330], [350, 350, 330, 330]] }[n] || [];
+  const oy = 540 - 340, tilt = c.tilt == null ? [-1.2, 1.6, -.6, 1.0] : c.tilt;
+  L.forEach((b, i) => {
+    const t0 = .1 + i * .22, p = o5(P(t, t0, t0 + .8)), mono = c.mono ? 1 - ioc(P(t, t0 + .3, t0 + 1.8)) : 0;
+    const d = el(`<div style="width:${b[2]}px;height:${b[3]}px;padding:${c.mat == null ? 12 : c.mat}px;background:var(--mat);box-shadow:0 22px 50px rgba(60,40,20,.22);box-sizing:border-box">
+      <div style="width:100%;height:100%;overflow:hidden"><img src="${U(imgs[i])}" style="width:100%;height:100%;object-fit:cover;object-position:${(c.focus || [])[i] || '50% 40%'};display:block;filter:grayscale(${mono});transform:scale(${1.03 + .04 * P(t, 0, dur)});transform-origin:${(c.focus || [])[i] || '50% 40%'}"></div></div>`, ox + b[0], oy + b[1]);
+    d.style.opacity = p; d.style.filter = `blur(${(1 - p) * 6}px)`; d.style.transform = `translateY(${(1 - p) * 24}px) rotate(${tilt[i % tilt.length] * (n > 1 ? 1 : .6)}deg)`;
+  });
+  const tx = side === 'left' ? 1010 : 230;
+  const col = el('', tx, 540, 'width:680px;display:flex;flex-direction:column;align-items:flex-start;gap:10px'); col.style.transform = 'translateY(-50%)';
+  const add = (hh, t0, dy) => { const q = document.createElement('div'); q.innerHTML = hh; const d = q.firstElementChild; col.appendChild(d); appear(d, t, t0, .7, dy); };
+  if (c.head) add(`<div class="k" style="font-size:${c.head_size || 22}px;margin-bottom:4px">${c.head}</div>`, .25, 10);
+  if (c.sub) add(`<div style="font-family:var(--JP);font-weight:600;font-size:${c.sub_size || 34}px;color:var(--fg);letter-spacing:.12em">${c.sub}</div>`, .4, 12);
+  if (c.note) add(`<div style="font-family:var(--JP);font-weight:400;font-size:${c.note_size || 28}px;color:var(--fg2);letter-spacing:.1em;margin-bottom:18px;white-space:nowrap">${c.note}</div>`, .55, 12);
+  const roles = (c.names || []).map(nm => nm.includes('　') ? nm.split('　')[0] : ''), rw = Math.max(0, ...roles.map(r => r.length));   // 役職の列をそろえる（「設計部 課長　長谷川」と「設計部　森本」の頭）
+  (c.names || []).forEach((nm, i) => {
+    const body = rw ? `<span style="display:inline-block;min-width:${(rw * 1.14 + .8).toFixed(2)}em">${roles[i]}</span>${roles[i] ? nm.slice(roles[i].length + 1) : nm}` : nm;
+    add(`<div style="font-family:var(--JP);font-weight:600;font-size:${c.name_size || 40}px;color:var(--fg);letter-spacing:.14em;line-height:1.5;white-space:nowrap">${body}</div>`, .75 + i * .12, 14);
+  });
+  fadeOut(t, dur, c.out == null ? .5 : c.out);
+};
+// ===== stack：写真が 1 枚ずつ机に置かれるように重なっていく（山場の前の振り返り）。lines で見出しを左上に =====
+// imgs, every: 1 枚の間隔（秒）, seed, push: 全体の寄り（負で引く）, spots: 置き場所, label_at: 見出しの左上, dark_out: 終わりの秒で暗く（山場の暗転へ）
+S.stack = function (t, dur, c) {
+  clear(); let s = c.seed || 3; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  const ev = c.every || .45;
+  (c.imgs || []).forEach((im, i) => {
+    const r4 = [520 + rnd() * 1000, 380 + rnd() * 440, 380 + rnd() * 170, (rnd() - .5) * 22];
+    const [x, y, w, rot] = c.spots && c.spots[i] ? c.spots[i] : r4, t0 = (c.start || .2) + i * ev;   // spots: [[x, y, 幅, 傾き], …] 顔を隠さない置き場所
+    if (t < t0) return;
+    const p = o5(P(t, t0, t0 + .75)), [iw, ih] = IMGD[im] || [4, 3], h = w * ih / iw;
+    const d = el(`<div style="width:${w}px;height:${h}px;padding:12px;background:var(--mat);box-shadow:0 18px 44px rgba(40,25,10,.3)"><img src="${U(im)}" style="width:100%;height:100%;object-fit:cover;display:block"></div>`, x, y);
+    d.style.opacity = p; d.style.filter = `blur(${(1 - p) * 6}px)`; d.style.transform = `translate(-50%,-50%) scale(${1.55 - .55 * p}) rotate(${rot * (1 + (1 - p) * 1.4)}deg)`;
+  });
+  if (c.lines) {                                         // 見出しは写真の手前の白いラベルに（重なった写真に隠れない）
+    const [lx, ly] = c.label_at || [X0, Y0 + 10];               // label_at: 見出しの左上（写真の顔を避けて隅へ）
+    const box = el('', lx, ly, 'width:max-content;display:flex;flex-direction:column;gap:6px;z-index:5;padding:26px 40px 30px;background:var(--mat);box-shadow:0 16px 40px rgba(40,25,10,.22);transform:rotate(-1.5deg)');
+    appear(box, t, .15, .8, 12); stack(box, c.lines, t, .35, .3, 'var(--fg)', '');
+  }
+  cam.style.transform = `scale(${1 + (c.push == null ? .06 : c.push) * P(t, 0, dur)})`;
+  if (c.dark_out) el(`<div style="width:2600px;height:1600px;background:${c.dark || '#0d0b09'}"></div>`, -340, -260, 'z-index:9').style.opacity = ioc(P(t, dur - c.dark_out, dur));   // 山場の前に暗く
+  else fadeOut(t, dur, c.out == null ? .6 : c.out);
+};
+// ===== credits：エンドロール。名前が窓の下から流れ、最後に締めの言葉が止まる =====
+// sections: [{head: 英字の見出し, sub: 日本語の見出し, note: 1 行の言葉, names: [...]}]  col: [左端, 幅]  win_y / win_h: 文字の窓
+// lead: 流れ始める秒  last: {lines: card と同じ並び, at: 出る秒}  tail: 名前の最後に流す 1 行（例 and all guests）  name_size  align
+S.credits = function (t, dur, c) {
+  clear();
+  const [cx, cw] = c.col || [1100, 640], wy = c.win_y || 150, wh = c.win_h || 780, lead = c.lead == null ? .6 : c.lead;
+  const lastAt = c.last ? (c.last.at == null ? dur - 8 : c.last.at) : dur;
+  const html = (c.sections || []).map(s => `<div style="margin-bottom:${c.sec_gap || 100}px">
+      ${s.head ? `<div style="font:500 22px var(--ENS);letter-spacing:.32em;color:var(--y);text-transform:uppercase">${s.head}</div>` : ''}
+      ${s.sub ? `<div style="font-family:var(--JP);font-weight:600;font-size:30px;color:var(--fg2);letter-spacing:.14em;margin-top:8px">${s.sub}</div>` : ''}
+      ${s.note ? `<div style="font-family:var(--JP);font-weight:400;font-size:${c.note_size || 28}px;color:var(--fg);opacity:.8;letter-spacing:.08em;margin-top:10px;line-height:1.6">${s.note}</div>` : ''}
+      <div style="margin-top:22px;font-family:var(--JP);font-weight:${c.name_w || 600};font-size:${c.name_size || 40}px;line-height:1.9;color:var(--fg);letter-spacing:.14em">${(s.names || []).map(n => `<div style="white-space:nowrap">${n}</div>`).join('')}</div></div>`).join('')
+    + (c.tail ? `<div style="margin-top:40px;display:flex;flex-direction:column;gap:14px">${(typeof c.tail[0] === 'string' && !Array.isArray(c.tail[0]) ? [c.tail] : c.tail).map(l => lineHtml(l, 'var(--fg)', '')[0]).join('')}</div>` : '');
+  const win = el('', cx, wy, `width:${cw}px;height:${wh}px;overflow:hidden;-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 14%,#000 86%,transparent 100%)`);
+  const roll = document.createElement('div'); roll.style.cssText = `position:absolute;left:0;top:0;width:${cw}px;text-align:${c.align || 'left'}`; roll.innerHTML = html; win.appendChild(roll);
+  const H = roll.offsetHeight;
+  roll.style.transform = `translateY(${wh - (wh + H) * P(t, lead, lastAt - .2)}px)`;
+  if (c.last) {
+    const bx = el('', cx, wy + wh / 2, `width:${cw}px;display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center`);
+    bx.style.transform = 'translateY(-50%)';
+    stack(bx, c.last.lines, t, lastAt + .2, c.last.step || .4, 'var(--fg)', '');
+  }
+  fadeOut(t, dur, c.out == null ? .8 : c.out);
+};
+// ===== countdown：10→1（1 秒ずつ）。円が 1 秒で一周し、数字が切り替わる =====
+// from（10）, step（1）, lead（始まるまでの秒）, dim（下を暗く）, dim_box（暗くする四角。省くと全面）, center（円の中心）, leader（十字の線）, text（下の一言）, fg, ring（線の色）
+S.countdown = function (t, dur, c) {
+  clear();
+  if (c.dim) { const [dx, dy, dw, dh] = c.dim_box || [0, 0, 1920, 1080];
+    const d = el(`<div style="width:${dw}px;height:${dh}px;background:var(--shade)"></div>`, dx, dy); d.style.opacity = c.dim * o5(P(t, 0, .4)); }
+  const from = c.from || 10, step = c.step || 1, lead = c.lead || 0, k = Math.floor((t - lead) / step), n = from - k, u = (((t - lead) % step) + step) % step / step;
+  const [X, Y] = c.center || [960, 540], R = c.r || 220, ln = c.ring || 'var(--line)';
+  if (c.text) { const tx = el(`<div class="jp" style="font-weight:600;font-size:34px;color:${c.fg || 'var(--fg2)'};letter-spacing:.2em;white-space:nowrap">${c.text}</div>`, X, Y + R + 100); rise(tx, t, .2, .6, 10, null, true); }
+  if (t >= lead && n >= 1) {
+    const arc = 2 * Math.PI * R, L = c.leader === false ? '' :
+      `<line x1="${X - R - 140}" y1="${Y}" x2="${X + R + 140}" y2="${Y}" stroke="${ln}" stroke-width="1"/><line x1="${X}" y1="${Y - R - 140}" x2="${X}" y2="${Y + R + 140}" stroke="${ln}" stroke-width="1"/>`;
+    if (!c.no_ring) el(`<svg width="1920" height="1080" style="overflow:visible">${L}<circle cx="${X}" cy="${Y}" r="${R}" fill="none" stroke="${ln}" stroke-width="1.5"/>
+      <circle cx="${X}" cy="${Y}" r="${R}" fill="none" stroke="var(--y)" stroke-width="3" stroke-dasharray="${arc}" stroke-dashoffset="${arc * (1 - u)}" transform="rotate(-90 ${X} ${Y})"/></svg>`, 0, 0);   // no_ring: 丸い枠なしで数字だけ（枠はテンプレートに見えやすい）
+    const q = o5(P(u, 0, .22));
+    const num = el(`<div style="font:500 ${c.size || 280}px/1 var(--ENS);color:${c.fg || 'var(--fg)'}">${n}</div>`, X, Y);
+    num.style.transform = `translate(-50%,-54%) scale(${1.1 - .1 * q})`; num.style.opacity = Math.min(1, q * 1.3) * (1 - .55 * P(u, .86, 1));
+  }
+  fadeOut(t, dur, .4);
+};
+// 映像の窓・額（scenes.json の hole: [x, y, 幅, 高さ]）。窓の外を地の色で塗り、窓の中は透明（overlay で下の映像が見える）
+// hole_border: 額の縁の太さ（hole_color） hole_in / hole_out: 始まり／終わりの何秒で、額が地から溶けて現れる／地へ溶けて閉じる（地の色が窓をふさぐ）
+function frame(c, t, dur) {
+  const fr = document.getElementById('frame'); fr.innerHTML = '';
+  const bk = document.getElementById('back'); bk.style.clipPath = '';
+  if (!c.hole) return;
+  const [hx, hy, hw, hh] = c.hole, b = c.hole_border || 0, r = c.hole_radius || 0;
+  if (c.back) {                                          // 止まった地（紙・石目）に窓をあけ、下の映像をプリントのように見せる（"overlay": true と一緒に）
+    bk.style.clipPath = `polygon(evenodd,0 0,1920px 0,1920px 1080px,0 1080px,0 0,${hx}px ${hy}px,${hx}px ${hy + hh}px,${hx + hw}px ${hy + hh}px,${hx + hw}px ${hy}px,${hx}px ${hy}px)`;
+    const sh = THEME.light ? 'rgba(60,40,20,.2)' : 'rgba(0,0,0,.5)';
+    fr.innerHTML = `<div style="position:absolute;left:${hx}px;top:${hy}px;width:${hw}px;height:${hh}px;box-shadow:0 0 0 ${b}px ${c.hole_color || 'var(--mat)'},0 26px 60px ${b}px ${sh}"></div>`;
+    return;
+  }
+  const sh = THEME.light ? 'rgba(60,40,20,.16)' : 'rgba(0,0,0,.5)';
+  const open = (c.hole_in ? ioc(P(t, 0, c.hole_in)) : 1) * (c.hole_out ? 1 - ioc(P(t, dur - c.hole_out, dur)) : 1);
+  const box = `position:absolute;left:${hx}px;top:${hy}px;width:${hw}px;height:${hh}px;border-radius:${r}px`;
+  fr.innerHTML = `<div style="${box};box-shadow:0 0 0 4000px var(--bg)"></div>
+    <div style="${box};box-shadow:0 0 0 ${b}px ${c.hole_color || 'var(--mat)'},0 24px 60px ${b}px ${sh};opacity:${open}"></div>
+    <div style="${box};background:var(--bg);opacity:${1 - open}"></div>`;
+}
 
 let CFG = {}, MAP = null, LETTERBOX = true; window.DUR = {};
 window.renderFx = function (k, t) {
   const c = (CFG.scenes || {})[k] || {}, type = c.type || k;
   if (!S[type]) throw new Error('場面の種類が無い: ' + type);
+  back(c);
   S[type](t, window.DUR[k], c);
-  const light = type === 'brand' || type === 'brand_end';   // 明るい地では周辺の暗さと粒を消す
-  document.querySelector('.vig').style.opacity = light ? 0 : 1;
-  const g = document.getElementById('grain'); g.style.opacity = light ? .03 : '';
+  frame(c, t, window.DUR[k]);
+  const ov = !!c.overlay;
+  document.getElementById('bars').innerHTML = LETTERBOX && !ov && type !== 'brand' && type !== 'brand_end' && !c.no_bars
+    ? '<div style="position:absolute;left:0;top:0;width:1920px;height:138px;background:#000"></div><div style="position:absolute;left:0;top:941px;width:1920px;height:139px;background:#000"></div>' : '';                                    // 透明の場面：地と周辺の暗さと粒を消す
+  document.documentElement.style.background = document.body.style.background = ov ? 'transparent' : '';
+  // 透明の場面が画面いっぱい不透明になると、撮った PNG から透明の情報が消えて書き出しがそこで止まる（文字の抜きを全面に開いた時に 102 コマで切れた）。左上の 1 点だけ常に透明にする
+  document.body.style.clipPath = ov ? 'polygon(1px 0,100% 0,100% 100%,0 100%,0 1px,1px 1px)' : '';
+  const light = type === 'brand' || type === 'brand_end' || !!THEME.light;   // 明るい地では周辺の暗さと粒を弱める
+  document.querySelector('.vig').style.opacity = light || ov ? 0 : 1;
+  const g = document.getElementById('grain'); g.style.opacity = ov ? 0 : light ? (THEME.grain == null ? .06 : THEME.grain) : '';
   g.style.backgroundPosition = `${(Math.floor(t * 24) * 37) % 200}px ${(Math.floor(t * 24) * 53) % 200}px`;
 };
 (async () => {
   CFG = await (await fetch('/proj/build/scenes.json')).json();
-  const th = CFG.theme || {}, r = document.documentElement.style;
-  for (const [a, b] of [['bg', '--bg'], ['accent', '--y'], ['accent2', '--o'], ['brand', '--brand'], ['dot', '--dot']]) if (th[a]) r.setProperty(b, th[a]);
+  const th = CFG.theme || {}, r = document.documentElement.style; THEME = th;
+  for (const [a, b] of [['bg', '--bg'], ['accent', '--y'], ['accent2', '--o'], ['brand', '--brand'], ['dot', '--dot'], ['fg', '--fg'], ['fg2', '--fg2'],
+    ['line', '--line'], ['land', '--land'], ['shade', '--shade'], ['mat', '--mat'], ['strong', '--WS']]) if (th[a]) r.setProperty(b, th[a]);
+  if (th.font === 'serif') { r.setProperty('--JP', 'var(--SERIF)'); r.setProperty('--EN', 'var(--ENS)'); }
   try { MAP = await (await fetch('/proj/build/map.json')).json(); } catch (e) { MAP = null; }
   try { const st = await (await fetch('/proj/build/style.json')).json(); LETTERBOX = st.letterbox !== false; } catch (e) {}
   const tl = await (await fetch('/proj/build/timeline.json')).json();
   tl.blocks.filter(b => b.t === 'fx').forEach(b => window.DUR[b.k] = b.dur);
   const imgs = new Set();
   JSON.stringify(CFG).replace(/"((?:assets|build|research)\/[^"]+\.(?:png|jpe?g|webp))"/g, (m, p) => imgs.add(p));
-  await Promise.all([...imgs].map(p => new Promise(res => { const i = new Image(); i.onload = res; i.onerror = res; i.src = U(p); })));
-  await Promise.all(['900 100px IN', '800 40px IN', '400 100px DG', '800 40px JPL', '600 40px JPL', '900 40px JPL', '800 40px "Noto Sans JP"'].map(f => document.fonts.load(f, 'あア亜A1').catch(() => {})));
+  await Promise.all([...imgs].map(p => new Promise(res => { const i = new Image(); i.onload = () => { IMGD[p] = [i.naturalWidth, i.naturalHeight]; res(); }; i.onerror = res; i.src = U(p); })));
+  const chars = [...new Set(JSON.stringify(CFG.scenes || {}))].join('') + 'あア亜A1';   // 使う文字の分だけ書体を読み込む
+  await Promise.all(['900 100px IN', '800 40px IN', '400 100px DG', '800 40px JPL', '600 40px JPL', '900 40px JPL', '800 40px "Noto Sans JP"',
+    '400 40px JPM', '600 40px JPM', '600 40px "Noto Serif JP"', '500 100px "Cormorant Garamond"', '600 100px "Cormorant Garamond"', '400 100px "Pinyon Script"'].map(f => document.fonts.load(f, chars).catch(() => {})));
   window.READY = true;
 })();
 </script></body></html>

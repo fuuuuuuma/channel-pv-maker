@@ -38,7 +38,16 @@ def run(P, video=None, no_asr=False):
             if 1 <= i - run_ < int(.3 * fps) and i < len(Y) - fps // 2: blacks.append((round(run_ / fps, 2), round((i - run_) / fps, 2)))   # 最後の黒は除く
             run_ = None
     if blacks: print('0.3 秒未満の真っ黒（一瞬の抜けに見えないか確かめる）', blacks)
-    json.dump({'frames': len(Y), 'spikes': spikes, 'short_blacks': blacks}, open(OUT / 'luma.json', 'w'))
+    dips = []                                                   # 明るい地の見た目で、途中に黒（地が抜けた所）が出ていないか
+    if D['style'].get('base') and sum(int(D['style']['base'][i:i + 2], 16) for i in (1, 3, 5)) > 450:
+        ef = int((D['style'].get('edge_fade', 0) + .3) * fps); run_ = None
+        for i, y in enumerate(Y):
+            if y < 40 and run_ is None: run_ = i
+            if (y >= 40 or i == len(Y) - 1) and run_ is not None:
+                if run_ > ef and i < len(Y) - ef: dips.append((round(run_ / fps, 2), round((i - run_) / fps, 2)))
+                run_ = None
+        if dips: print('明るい地なのに黒い所（地の色が抜けていないか）', dips)
+    json.dump({'frames': len(Y), 'spikes': spikes, 'short_blacks': blacks, 'light_dips': dips}, open(OUT / 'luma.json', 'w'))
 
     # 字幕と強調は声と一緒に出る（耳でも分かる）。名前の札は声が無いので読む時間が要る
     big = {o['k']: o.get('big') for o in TL['blocks'] if o.get('big')}

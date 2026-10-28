@@ -37,7 +37,12 @@ def build(P, places, geojson=None, height=1000, eps=1.2, min_area=40):
     proj = lambda lon, lat: ((lon - lon0) * k * sc, (lat1 - lat) * sc)
     paths = []
     for r in rings:
-        pts = _simplify([proj(*p[:2]) for p in r], eps)
+        pts = [proj(*p[:2]) for p in r]
+        if len(pts) > 3 and pts[0] == pts[-1]:              # 閉じた輪郭は始点から一番遠い点で 2 つに分けて間引く（そのままだと 2 点につぶれる）
+            far = max(range(len(pts)), key=lambda i: math.hypot(pts[i][0] - pts[0][0], pts[i][1] - pts[0][1]))
+            pts = _simplify(pts[:far + 1], eps)[:-1] + _simplify(pts[far:], eps)
+        else:
+            pts = _simplify(pts, eps)
         if len(pts) < 3: continue
         area = abs(sum(pts[i][0] * pts[i - 1][1] - pts[i - 1][0] * pts[i][1] for i in range(len(pts)))) / 2
         if area < min_area: continue

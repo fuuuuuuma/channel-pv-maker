@@ -6,7 +6,7 @@ AE 版との違い：話している顔の「ゆっくり寄る」動きは無�
 import json, shutil, subprocess
 from pathlib import Path
 from . import env
-from .project import probe_dur
+from .project import probe_dur, check_mix
 
 PRO = ['-c:v', 'prores_ks', '-profile:v', '2', '-pix_fmt', 'yuv422p10le']
 PRO_A = ['-c:v', 'prores_ks', '-profile:v', '4444', '-pix_fmt', 'yuva444p10le']
@@ -52,6 +52,18 @@ def render_item(i, it, punch, fps, out):
     ff(['-ss', f'{max(0, start):.3f}', '-t', f'{L:.3f}', '-i', it['file'], '-filter_complex', vf, '-map', '[o]', '-an', *PRO_A, str(out)])
 
 
+def ai_vf(x, L, fps):
+    """AI・フリー素材の動画：src 秒から使い、枠（box）を覆う大きさに合わせ、zoom でゆっくり寄る。枠の外は透明"""
+    r = subprocess.run([env.ffprobe(), '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', x['file']], capture_output=True, text=True)
+    sw, sh = (int(v) for v in r.stdout.strip().split(',')[:2])
+    bx = x.get('box') or [0, 0, 1920, 1080]; z0, z1 = x.get('zoom') or (1, 1)
+    cov = max(bx[2] / sw, bx[3] / sh); dx, dy = x.get('shift') or (0, 0)
+    if abs(z1 - z0) < 1e-4: sc = f"scale={round(sw * cov * z0 / 2) * 2}:-2:flags=lanczos"
+    else: sc = f"scale=w='trunc({sw * cov:.4f}*({z0}+{z1 - z0:.5f}*t/{L:.3f})/2)*2':h=-2:eval=frame:flags=lanczos"
+    return (f"trim=start={x.get('src') or 0:.3f}:duration={L:.3f},setpts=PTS-STARTPTS,{sc},crop={bx[2]}:{bx[3]}:max(0\\,(in_w-out_w)/2-{dx}):max(0\\,(in_h-out_h)/2-{dy}),"
+            f"fps={fps},format=yuva444p10le,pad=1920:1080:{bx[0]}:{bx[1]}:color=black@0")
+
+
 def overlay_batch(base, clips, total, fps, out):
     """clips: [(ファイル, 始まりの秒, 追加のフィルタ)]"""
     args = ['-i', str(base)]; fc = []; prev = '0:v'
@@ -85,7 +97,7 @@ def run(P, keep=False):
         clips.append((f, it['t0'] - it['pre'], ''))
     print('2) 時刻どおりに重ねる', flush=True)
     base = W / 'base_0.mov'
-    ff(['-f', 'lavfi', '-i', f'color=black:s=1920x1080:r={fps}:d={total:.3f}', *PRO, str(base)])
+    ff(['-f', 'lavfi', '-i', f"color={S.get('base') or 'black'}:s=1920x1080:r={fps}:d={total:.3f}", *PRO, str(base)])
     for n in range(0, len(clips), 12):
         nxt = W / f'base_{n // 12 + 1}.mov'
         overlay_batch(base, clips[n:n + 12], total, fps, nxt); base.unlink(); base = nxt
@@ -93,10 +105,18 @@ def run(P, keep=False):
     g = []
     for x in D['fx']:
         if not Path(x['file']).exists(): print('  場面が無い（飛ばす）', x['k']); continue
+        if x.get('matte_only'): continue                                    # 文字の形に抜くための場面（それ自体は重ねない）
         L = x['t1'] - x['t0']
-        ex = f"trim=0:{L:.3f},setpts=PTS-STARTPTS,scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,fps={fps},format=yuva444p10le"
+        if x['ai']: ex = ai_vf(x, L, fps)
+        else: ex = f"trim=0:{L:.3f},setpts=PTS-STARTPTS,scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,fps={fps},format=yuva444p10le"
+        if x.get('fade', 0) > 0: ex += f",fade=t=in:st=0:d={x['fade']:.3f}:alpha=1"
         if x['fout'] > 0: ex += f",fade=t=out:st={L - x['fout']:.3f}:d={x['fout']:.3f}:alpha=1"
-        g.append((x['file'], x['t0'], ex, x['ai']))
+        if x['ai'] and x.get('matte') and Path(x['matte']).exists():          # 文字の形に抜く（AE 版のトラックマットと同じ）
+            mf = W / f"matte_{x['k']}.mov"
+            ff(['-i', x['file'], '-i', x['matte'], '-filter_complex',
+                f"[0:v]{ex}[a];[1:v]trim=0:{L:.3f},setpts=PTS-STARTPTS,fps={fps},format=yuva444p10le,alphaextract[m];[a][m]alphamerge[o]", '-map', '[o]', *PRO, str(mf)])
+            g.append((mf, x['t0'], '', True)); continue
+        g.append((x['file'], x['t0'], ex, x['ai']))   # blend（screen など）は AE 版だけ。ここでは普通に重ねる
     # AI 素材 → 周辺の暗さ → 黒帯 → 場面 の順（AE 版と同じ重なり）
     ai = [(f, t, e) for f, t, e, a in g if a]; sc = [(f, t, e) for f, t, e, a in g if not a]
     if ai:
@@ -104,7 +124,10 @@ def run(P, keep=False):
     vf = []
     if S.get('vignette', 45) > 0: vf.append('vignette=angle=PI/5')
     for b in D['bigs']: vf.append(f"drawbox=x=0:y=0:w=iw:h=ih:color=black@0.30:t=fill:enable='between(t,{b['t'] - .1:.3f},{b['end']:.3f})'")
-    if S.get('letterbox', True): vf += ['drawbox=x=0:y=0:w=iw:h=138:color=black:t=fill', 'drawbox=x=0:y=941:w=iw:h=139:color=black:t=fill']
+    if S.get('letterbox', True):
+        o = S.get('letterbox_open')                         # 山場で黒帯を 0.8 秒で開く（plan が場面の名前を秒に直してある）
+        k = f"(1-clip((t-{o})/0.8,0,1))" if isinstance(o, (int, float)) else '1'
+        vf += [f"drawbox=x=0:y=0:w=iw:h='138*{k}':color=black:t=fill", f"drawbox=x=0:y='1080-139*{k}':w=iw:h='139*{k}':color=black:t=fill"]
     if vf:
         nxt = W / 'base_v.mov'; ff(['-i', str(base), '-vf', ','.join(vf), *PRO, str(nxt)]); base.unlink(); base = nxt
     if sc:
@@ -124,11 +147,14 @@ def run(P, keep=False):
     vf = ['null']
     last = [x for x in D['fx'] if x['t1'] >= total - .5]
     if last: vf.append(f"drawbox=x=0:y=0:w=iw:h=ih:color=black:t=fill:enable='gte(t,{last[-1]['t1'] - .04:.3f})'")
+    ef = S.get('edge_fade', 0)
+    if ef > 0: vf += [f'fade=t=in:st=0:d={ef}', f'fade=t=out:st={total - .2 - ef:.3f}:d={ef}']
     P.exports.mkdir(exist_ok=True)
     out = P.exports / f"{D['name']}.mp4"
     print('4) 音と合わせて書き出す', flush=True)
+    check_mix(P, total)
     ff(['-i', str(base), '-i', str(P.build / 'mix.wav'), '-vf', ','.join(vf), '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-preset', 'slow', '-crf', '16',
-        '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '320k', '-movflags', '+faststart', '-shortest', str(out)])
+        '-pix_fmt', 'yuv420p', '-c:a', env.aac(), '-b:a', '320k', '-movflags', '+faststart', '-shortest', str(out)])
     chk = P.build / '_ff_check'; shutil.rmtree(chk, ignore_errors=True); chk.mkdir()
     for t in D['checktimes']:
         subprocess.run([env.ffmpeg(), '-v', 'error', '-y', '-ss', f'{t:.2f}', '-i', str(out), '-frames:v', '1', str(chk / f'f_{round(t * 100):06d}.png')])

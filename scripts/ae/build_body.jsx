@@ -70,11 +70,25 @@
     stage = '本編のコンポ';
     comp = proj.items.addComp(D.name, 1920, 1080, 1, D.total, D.fps); comp.bgColor = [0, 0, 0]; comp.motionBlur = true; comp.shutterAngle = 180;
     comp.layers.add(inner).name = '映像';
+    if (ST.base && ST.base != '#000000') { var bs = comp.layers.addSolid(rgb(ST.base), '地の色', 1920, 1080, 1); bs.moveToEnd(); }   // 明るい見た目は間（何も無い所）も地の色に
     stage = 'AI などの完成素材';
     for (var ai = 0; ai < D.fx.length; ai++) {
       var A = D.fx[ai]; if (!A.ai || !new File(A.file).exists) continue;
-      var al = comp.layers.add(foot(A.file, fFx)); al.name = 'AI_' + A.k; al.startTime = A.t0; al.inPoint = A.t0; al.outPoint = A.t1;
-      var asc = Math.max(1920 / al.source.width, 1080 / al.source.height) * 100; tr(al, 'ADBE Scale').setValue([asc, asc]); tr(al, 'ADBE Position').setValue([960, 540]);
+      var al = comp.layers.add(foot(A.file, fFx)); al.name = 'AI_' + A.k; al.startTime = A.t0 - (A.src || 0); al.inPoint = A.t0; al.outPoint = A.t1;
+      var bx = A.box || [0, 0, 1920, 1080];                       // 枠を覆う大きさ（はみ出しは枠の形で切る）・ゆっくり寄る・溶けて入る
+      var sh = A.shift || [0, 0];                                 // shift：枠の中で絵をずらす（顔が黒帯で切れるとき下げる）
+      var asc = Math.max(bx[2] / al.source.width, bx[3] / al.source.height) * 100; tr(al, 'ADBE Position').setValue([bx[0] + bx[2] / 2 + sh[0], bx[1] + bx[3] / 2 + sh[1]]);
+      if (A.zoom && A.zoom[0] != A.zoom[1]) keys(tr(al, 'ADBE Scale'), [[A.t0, [asc * A.zoom[0], asc * A.zoom[0]]], [A.t1, [asc * A.zoom[1], asc * A.zoom[1]]]], 15, 15);
+      else { var z = A.zoom ? A.zoom[0] : 1; tr(al, 'ADBE Scale').setValue([asc * z, asc * z]); }
+      if (A.matte && new File(A.matte).exists) {                    // 文字の形に抜く：透明の場面のアルファで映像を切る
+        var ml = comp.layers.add(foot(A.matte, fFx)); ml.name = '抜き_' + A.k; ml.startTime = A.t0; ml.inPoint = A.t0; ml.outPoint = A.t1;
+        ml.moveBefore(al); al.setTrackMatte(ml, TrackMatteType.ALPHA); ml.enabled = false;
+      } else if (A.box) {
+        var mt = comp.layers.addSolid([1, 1, 1], '枠_' + A.k, bx[2], bx[3], 1); tr(mt, 'ADBE Position').setValue([bx[0] + bx[2] / 2, bx[1] + bx[3] / 2]);
+        mt.inPoint = A.t0; mt.outPoint = A.t1; mt.moveBefore(al); al.setTrackMatte(mt, TrackMatteType.ALPHA); mt.enabled = false;
+      }
+      if (A.fade > 0) keys(tr(al, 'ADBE Opacity'), [[A.t0, 0], [A.t0 + A.fade, 100]], 40, 40);
+      if (A.fout > 0) keys(tr(al, 'ADBE Opacity'), [[A.t1 - A.fout, 100], [A.t1, 0]], 40, 40);
     }
     if (ST.vignette > 0) {
       stage = '周辺を暗く';
@@ -85,11 +99,19 @@
       mk.property('ADBE Mask Shape').setValue(sh); mk.property('ADBE Mask Feather').setValue([420, 420]);
       tr(vg, 'ADBE Opacity').setValue(ST.vignette);
     }
-    if (ST.letterbox) { stage = '黒帯'; bars(comp, '黒帯', 0, D.total, false); }
+    if (ST.letterbox) {
+      stage = '黒帯'; bars(comp, '黒帯', 0, D.total, false);
+      if (ST.letterbox_open) {                                    // 山場で黒帯を 0.8 秒で開いて全面に
+        var bt = comp.layer('黒帯_上'), bb = comp.layer('黒帯_下'), o = ST.letterbox_open;
+        keys(tr(bt, 'ADBE Position'), [[o, [960, 138]], [o + .8, [960, 0]]], 40, 80);
+        keys(tr(bb, 'ADBE Position'), [[o, [960, 941]], [o + .8, [960, 1080]]], 40, 80);
+      }
+    }
     stage = '場面';
     for (var fi = 0; fi < D.fx.length; fi++) {
-      var X = D.fx[fi]; if (X.ai || !new File(X.file).exists) continue;
+      var X = D.fx[fi]; if (X.ai || X.matte_only || !new File(X.file).exists) continue;
       var fl = comp.layers.add(foot(X.file, fFx)); fl.name = '場面_' + X.k; fl.startTime = X.t0; fl.inPoint = X.t0; fl.outPoint = X.t1;
+      if (X.blend == 'screen') fl.blendingMode = BlendingMode.SCREEN; else if (X.blend == 'add') fl.blendingMode = BlendingMode.ADD;
       if (X.fout > 0) keys(tr(fl, 'ADBE Opacity'), [[X.t1 - X.fout, 100], [X.t1, 0]], 40, 40);
     }
     for (var xb = 0; xb < D.bars.length; xb++) bars(comp, '声の場面の黒帯' + (xb + 1), D.bars[xb].t0, D.bars[xb].t1, true);
@@ -103,6 +125,10 @@
     stage = '字幕';
     for (var ci = 0; ci < D.subs.length; ci++) { var C = D.subs[ci]; cCaption(comp, C.text, C.t0, C.t1, '字幕' + (ci + 1)); }
     if (D.fx.length) { var lastFx = D.fx[D.fx.length - 1]; if (lastFx.t1 >= D.total - .5) { var tail = comp.layers.addSolid([0, 0, 0], '最後の黒', 1920, 1080, 1); tail.inPoint = lastFx.t1 - .04; } }
+    if (ST.edge_fade > 0) {                                        // 頭と終わりを黒から／黒へ溶かす（式場の前後の黒につなぐ）
+      var ef = comp.layers.addSolid([0, 0, 0], '頭と終わりの黒', 1920, 1080, 1);
+      keys(tr(ef, 'ADBE Opacity'), [[0, 100], [ST.edge_fade, 0], [D.total - .2 - ST.edge_fade, 0], [D.total - .2, 100]], 40, 40);
+    }
     stage = '音';
     if (new File(D.audio).exists) comp.layers.add(foot(D.audio)).name = '音（声・音楽・効果音を混ぜ済み）';
     stage = '保存';

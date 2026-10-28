@@ -60,11 +60,11 @@ def run(P):
 
     def ref(s):
         if isinstance(s, (int, float)): return float(s)
-        m = re.fullmatch(r'\s*([\w-]+)\.(T|end|voice|vend)\s*([+-]\s*[\d.]+)?\s*', str(s))
+        m = re.fullmatch(r'\s*([\w-]+)\.(T|end|voice|vend)((?:\s*[+-]\s*[\d.]+)*)\s*', str(s))   # 足し引きは何段でも（hand.T+4.4+0.3）
         if not m: return float(s)
         b = BL[m.group(1)]
         base = {'T': b['T'], 'end': b['end'], 'voice': (b.get('voice') or {}).get('t0', b['T']), 'vend': (b.get('voice') or {}).get('t1', b['end'])}[m.group(2)]
-        return base + (float(m.group(3).replace(' ', '')) if m.group(3) else 0)
+        return base + sum(float(x.replace(' ', '')) for x in re.findall(r'[+-]\s*[\d.]+', m.group(3)))
 
     vo, mu, fx = (np.zeros((N, 2), np.float32) for _ in range(3))
     from scipy.signal import butter, sosfilt
@@ -146,11 +146,12 @@ def run(P):
         raw = P.build / '_mix_raw.wav'
         subprocess.run([env.ffmpeg(), '-v', 'error', '-y', '-f', 'f32le', '-ac', '2', '-ar', str(SR), '-i', '-', str(raw)], input=a.astype(np.float32).tobytes(), check=True)
         if not norm: raw.replace(p); return
-        L = S.get('loudness', -14)
-        m = subprocess.run([env.ffmpeg(), '-hide_banner', '-i', str(raw), '-af', f'loudnorm=I={L}:TP=-1:LRA=11:print_format=json', '-f', 'null', '-'], capture_output=True, text=True).stderr
+        L = S.get("loudness", -14)          # ピークは -2（書き出しの AAC で 0.5〜1dB 持ち上がるので、仕上がりで -1 以下に収める）
+        m = subprocess.run([env.ffmpeg(), '-hide_banner', '-i', str(raw), '-af', f'loudnorm=I={L}:TP=-2:LRA=11:print_format=json', '-f', 'null', '-'], capture_output=True, text=True).stderr
         j = json.loads(m[m.rindex('{'):m.rindex('}') + 1])
-        af = (f"loudnorm=I={L}:TP=-1:LRA=11:measured_I={j['input_i']}:measured_TP={j['input_tp']}:measured_LRA={j['input_lra']}"
-              f":measured_thresh={j['input_thresh']}:offset={j['target_offset']}:linear=true")
+        af = (f"loudnorm=I={L}:TP=-2:LRA=11:measured_I={j['input_i']}:measured_TP={j['input_tp']}:measured_LRA={j['input_lra']}"
+              f":measured_thresh={j['input_thresh']}:offset={j['target_offset']}:linear=true"
+              f",aresample={SR},alimiter=limit=0.79:attack=5:release=50:level=0")   # 線形で TP を守れない曲でも -2dB で止める（実例 -0.9 になった）
         subprocess.run([env.ffmpeg(), '-v', 'error', '-y', '-i', str(raw), '-af', af, '-ar', str(SR), str(p)], check=True)
         raw.unlink()
 
